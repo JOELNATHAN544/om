@@ -82,15 +82,15 @@ catalog:
 
     # Local templates
     - type: file
-      target: ../../templates/new-application/template.yaml
+      target: ./templates/new-application/template.yaml
       rules:
         - allow: [Template]
     - type: file
-      target: ../../templates/request-service/template.yaml
+      target: ./templates/request-service/template.yaml
       rules:
         - allow: [Template]
     - type: file
-      target: ../../templates/team-onboarding/template.yaml
+      target: ./templates/team-onboarding/template.yaml
       rules:
         - allow: [Template]
 

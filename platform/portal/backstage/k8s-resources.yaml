@@ -1,0 +1,57 @@
+# Backstage Kubernetes Resources Template
+# -----------------------------------------------------------------------------
+# This file provides the necessary Kubernetes resources for deploying Backstage.
+# Update the placeholders (marked with <...>) before applying.
+# -----------------------------------------------------------------------------
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backstage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backstage
+  namespace: backstage
+  annotations:
+    # If using GCP Workload Identity
+    iam.gke.io/gcp-service-account: <backstage-sa@your-project.iam.gserviceaccount.com>
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backstage-secrets
+  namespace: backstage
+type: Opaque
+stringData:
+  GOOGLE_CLIENT_ID: <your-google-client-id>
+  GOOGLE_CLIENT_SECRET: <your-google-client-secret>
+  GITHUB_TOKEN: <your-github-token>
+  POSTGRES_USER: backstage
+  POSTGRES_PASSWORD: <your-postgres-password>
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backstage
+  namespace: backstage
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+spec:
+  tls:
+  - hosts:
+    - portal.example.com
+    secretName: backstage-tls
+  rules:
+  - host: portal.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backstage
+            port:
+              number: 7007

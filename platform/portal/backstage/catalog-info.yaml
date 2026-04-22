@@ -9,5 +9,27 @@ metadata:
   #   backstage.io/techdocs-ref: dir:.
 spec:
   type: website
-  owner: john@example.com
+  owner: user:guest
   lifecycle: experimental
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: guest
+spec:
+  profile:
+    displayName: Guest User
+    email: guest@example.com
+    picture: https://avatars.dicebear.com/api/avataaars/guest.svg
+  memberOf: [platform-team]
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-team
+  description: The team that maintains the platform
+spec:
+  type: team
+  children: []

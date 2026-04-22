@@ -21,6 +21,16 @@ backstage:
           user: postgres
           password: ${POSTGRES_PASSWORD}
           database: backstage
+    auth:
+      environment: production
+      providers:
+        google:
+          production:
+            clientId: ${GOOGLE_CLIENT_ID}
+            clientSecret: ${GOOGLE_CLIENT_SECRET}
+            signIn:
+              resolvers:
+                - resolver: emailMatchingUserEntityProfileEmail
 
   extraEnvVars:
     - name: POSTGRES_PASSWORD
