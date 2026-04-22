@@ -66,16 +66,19 @@ catalog:
     pullRequestBranchName: backstage-integration
   rules:
     - allow: [Component, System, API, Resource, Location, Group, User, Template]
-  locations:
-    # Platform catalog
-    - type: url
-      target: https://github.com/skyengpro/om/blob/main/catalog/all.yaml
-      rules:
-        - allow: [Component, System, API, Resource, Template, Group]
+  
+  providers:
+    github:
+      om-platform:
+        organization: 'JOELNATHAN544'
+        catalogPath: '/catalog-info.yaml'
+        filters:
+          repository: '.*'
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 3 }
 
-    # Team catalogs (auto-discovered)
-    - type: github-discovery
-      target: https://github.com/skyengpro/*/blob/main/catalog-info.yaml
+  locations:
 
     # Local templates
     - type: file

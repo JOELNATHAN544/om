@@ -1,0 +1,41 @@
+# =============================================================================
+# Catalog
+# =============================================================================
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location, Group, User, Template]
+  
+  providers:
+    github:
+      om-platform:
+        organization: 'JOELNATHAN544'
+        catalogPath: '/catalog-info.yaml'
+        filters:
+          repository: '.*'
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 3 }
+
+  locations:
+    # Platform catalog
+    - type: url
+      target: https://github.com/JOELNATHAN544/om/blob/main/catalog/all.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Template, Group]
+
+    # Local templates
+    - type: file
+      target: ../../templates/new-application/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/request-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/team-onboarding/template.yaml
+      rules:
+        - allow: [Template]
