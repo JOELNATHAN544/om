@@ -168,7 +168,7 @@ spec:
             allowedHosts:
               - github.com
             allowedOwners:
-              - skyengpro
+              - JOELNATHAN544
 
   # ==========================================================================
   # Execution Steps
@@ -225,7 +225,7 @@ spec:
       name: Create Deployment Configuration
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=skyengpro&repo=om
+        repoUrl: github.com?owner=JOELNATHAN544&repo=om
         branchName: onboard-${{ parameters.name }}
         title: 'feat: onboard ${{ parameters.name }} application'
         description: |

@@ -41,10 +41,13 @@ backend:
 auth:
   environment: production
   providers:
-    google:
+    oidc:
       production:
-        clientId: ${GOOGLE_CLIENT_ID}
-        clientSecret: ${GOOGLE_CLIENT_SECRET}
+        metadataUrl: ${OIDC_METADATA_URL}
+        clientId: ${OIDC_CLIENT_ID}
+        clientSecret: ${OIDC_CLIENT_SECRET}
+        prompt: auto
+        scope: 'openid profile email groups'
         signIn:
           resolvers:
             - resolver: emailMatchingUserEntityProfileEmail
@@ -76,20 +79,6 @@ catalog:
     # Team catalogs (auto-discovered)
     - type: github-discovery
       target: https://github.com/skyengpro/*/blob/main/catalog-info.yaml
-
-    # Local templates
-    - type: file
-      target: ../../templates/new-application/template.yaml
-      rules:
-        - allow: [Template]
-    - type: file
-      target: ../../templates/request-service/template.yaml
-      rules:
-        - allow: [Template]
-    - type: file
-      target: ../../templates/team-onboarding/template.yaml
-      rules:
-        - allow: [Template]
 
 # =============================================================================
 # Scaffolder (Templates)

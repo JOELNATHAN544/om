@@ -1,0 +1,63 @@
+# Backstage Helm Values
+# Upstream Chart: https://github.com/backstage/charts
+
+backstage:
+  image:
+    registry: ghcr.io
+    repository: skyengpro/backstage
+    tag: latest
+    pullPolicy: Always
+
+  appConfig:
+    app:
+      baseUrl: https://portal.example.com
+    backend:
+      baseUrl: https://portal.example.com
+      database:
+        client: pg
+        connection:
+          host: backstage-postgresql
+          port: 5432
+          user: postgres
+          password: ${POSTGRES_PASSWORD}
+          database: backstage
+
+  extraEnvVars:
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: backstage-postgresql
+          key: postgres-password
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_TOKEN
+    - name: GOOGLE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_ID
+    - name: GOOGLE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_SECRET
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      kubernetes.io/ingress.class: nginx
+    host: portal.example.com
+    tls:
+      enabled: true
+      secretName: backstage-tls
+
+postgresql:
+  enabled: true
+  auth:
+    database: backstage
+    username: postgres
+    existingSecret: backstage-postgresql
