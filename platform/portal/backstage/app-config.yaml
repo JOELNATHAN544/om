@@ -48,6 +48,7 @@ auth:
         signIn:
           resolvers:
             - resolver: emailMatchingUserEntityProfileEmail
+            - resolver: emailLocalPartMatchingUserEntityName
 
 # =============================================================================
 # Integrations
