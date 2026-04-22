@@ -30,6 +30,30 @@ export GOOGLE_CLIENT_SECRET="..."
 yarn start
 ```
 
+Run frontend + backend in separate terminals (no scripts):
+
+```sh
+# Terminal 1 (backend)
+cd platform/portal/backstage
+export GOOGLE_CLIENT_ID="..."
+export GOOGLE_CLIENT_SECRET="..."
+export APP_CONFIG_FILES=app-config.yaml,app-config.local.yaml
+yarn workspace backend start
+```
+
+```sh
+# Terminal 2 (frontend)
+cd platform/portal/backstage
+export APP_CONFIG_FILES=app-config.yaml,app-config.local.yaml
+yarn workspace app start
+```
+
+Alternative (recommended): create `platform/portal/backstage/.env` (gitignored) and run:
+
+```sh
+bash scripts/start-local.sh
+```
+
 Kubernetes (Helm): create/update the `backstage-secrets` secret with keys
 `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see `platform/portal/backstage/k8s-resources.yaml`).
 
@@ -45,6 +69,19 @@ Google account email exactly.
 - Set `spec.profile.email` to your real email
 
 Then restart Backstage.
+
+### 4) Verify the `User` is actually in the catalog (debug)
+
+If Google login fails with “unable to resolve user identity”, verify the user entity exists:
+
+```sh
+# Get a guest token (works without catalog user mapping)
+TOKEN="$(curl -s "http://localhost:7007/api/auth/guest/refresh?env=development" | jq -r .backstageIdentity.token)"
+
+# Check your user exists in the catalog
+curl -i -H "Authorization: Bearer ${TOKEN}" \
+  "http://localhost:7007/api/catalog/entities/by-name/user/default/wankojoelnathan"
+```
 
 ## Deploy (Helm + ArgoCD)
 
