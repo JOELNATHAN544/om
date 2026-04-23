@@ -28,15 +28,14 @@ backstage:
   appConfig:
     app:
       title: OM Platform Portal
-      baseUrl: http://backstage.local:30007
+      baseUrl: https://portal.backstage.com
 
     backend:
-      baseUrl: http://backstage.local:30007
+      baseUrl: https://portal.backstage.com
       cors:
-        origin: http://backstage.local:30007
+        origin: https://portal.backstage.com
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
-
       database:
         client: pg
         connection:
@@ -52,10 +51,10 @@ backstage:
         store: memory
 
     auth:
-      environment: development
+      environment: production
       providers:
         google:
-          development:
+          production:
             clientId: ${GOOGLE_CLIENT_ID}
             clientSecret: ${GOOGLE_CLIENT_SECRET}
             signIn:
@@ -135,12 +134,18 @@ backstage:
           key: GOOGLE_CLIENT_SECRET
 
 service:
-  type: NodePort
-  nodePorts:
-    backend: 30007
+  type: ClusterIP
+  ports:
+    backend: 7007
+    name: http-backend
 
 ingress:
-  enabled: false
+  enabled: true
+  className: traefik
+  host: portal.backstage.com
+  annotations: {}
+  tls:
+    enabled: true
 
 postgresql:
   enabled: true

@@ -9,16 +9,22 @@ yarn install
 yarn start
 ```
 
-## Google OAuth (local + prod)
+## Local Development & Deployment
 
-### 1) Set Google OAuth Redirect URI(s)
+### 1) Hosts File Configuration
+To access the portal locally using its production-like domain, add this to your `/etc/hosts`:
 
-In Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client, set:
+```sh
+127.0.0.1 portal.backstage.com
+```
 
-- Local dev redirect URI: `http://localhost:7007/api/auth/google/handler/frame`
-- Production redirect URI: `https://portal.example.com/api/auth/google/handler/frame`
+### 2) Google OAuth (HTTPS)
 
-If your deployed URL is different, replace `portal.example.com` with your real domain.
+Google requires HTTPS for all domains except `localhost`. We use a "fake" public domain specifically to satisfy this security requirement.
+
+**Google Cloud Console Settings:**
+- Authorized JavaScript origins: `https://portal.backstage.com`
+- Authorized redirect URIs: `https://portal.backstage.com/api/auth/google/handler/frame`
 
 ### 2) Provide `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 
@@ -45,47 +51,33 @@ export APP_CONFIG_FILES=app-config.yaml,app-config.local.yaml
 yarn workspace backend start
 ```
 
-```sh
-# Terminal 2 (frontend)
-cd platform/portal/backstage
-export APP_CONFIG_FILES=app-config.yaml,app-config.local.yaml
-yarn workspace app start
-```
+### 3) Deployment (Local k3s)
 
-Alternative (recommended): create `platform/portal/backstage/.env` (gitignored) and run:
+The portal is deployed via Helm with a Traefik Ingress.
 
 ```sh
-bash scripts/start-local.sh
+# 1. Build and push image
+yarn build:backend
+docker build -f packages/backend/Dockerfile -t ghcr.io/joelnathan544/om-backstage:latest .
+docker push ghcr.io/joelnathan544/om-backstage:latest
+
+# 2. Upgrade Helm
+helm upgrade --install backstage backstage/backstage \
+  -n backstage \
+  -f ../../../helm/values/prod/backstage-values.yaml
 ```
 
-Kubernetes (Helm): create/update the `backstage-secrets` secret with keys
-`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see `platform/portal/backstage/k8s-resources.yaml`).
+Kubernetes Configuration:
+- Values: `helm/values/prod/backstage-values.yaml`
+- Secrets: `backstage-secrets` (Namespace: `backstage`)
 
-### 3) Add a Backstage `User` for your email
+### 4) Authentication & User Discovery
 
-This repo resolves Google sign-in using the resolver:
-`emailMatchingUserEntityProfileEmail`.
+We have implemented an **Automatic User Identity Resolver**.
 
-That means you must have a `User` entity whose `spec.profile.email` matches your
-Google account email exactly.
-
-- Edit: `platform/portal/backstage/catalog/users.yaml`
-- Set `spec.profile.email` to your real email
-
-Then restart Backstage.
-
-### 4) Verify the `User` is actually in the catalog (debug)
-
-If Google login fails with “unable to resolve user identity”, verify the user entity exists:
-
-```sh
-# Get a guest token (works without catalog user mapping)
-TOKEN="$(curl -s "http://localhost:7007/api/auth/guest/refresh?env=development" | jq -r .backstageIdentity.token)"
-
-# Check your user exists in the catalog
-curl -i -H "Authorization: Bearer ${TOKEN}" \
-  "http://localhost:7007/api/catalog/entities/by-name/user/default/wankojoelnathan"
-```
+- **Behavior**: Any user who authenticates via Google is automatically mapped to a Backstage user based on their email local-part (e.g., `john.doe@gmail.com` -> `user:default/john.doe`).
+- **No Manual Catalog Entry Required**: You do **not** need to manually add yourself to `users.yaml` to log in successfully.
+- **Debugging**: If login fails, ensure your `GOOGLE_CLIENT_ID` in the `backstage-secrets` K8s secret matches the one in your Google Console.
 
 ## GitHub integration (catalog + templates)
 
