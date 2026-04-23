@@ -26,15 +26,15 @@ RUN if [ -n "${APT_DNS}" ]; then printf "nameserver %s\n" "${APT_DNS}" > /etc/re
 
 # Some networks block outbound HTTP (port 80). Debian sources in slim images often use HTTP by default.
 # Switch to HTTPS so `apt-get update` works in those environments.
-RUN if [ -f /etc/apt/sources.list ]; then \
-      sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
-             -e 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list; \
-    fi; \
-    if [ -d /etc/apt/sources.list.d ]; then \
-      find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | \
-        xargs -0 sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
-                       -e 's|http://security.debian.org|https://security.debian.org|g' || true; \
-    fi
+# RUN if [ -f /etc/apt/sources.list ]; then \
+#       sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
+#              -e 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list; \
+#     fi; \
+#     if [ -d /etc/apt/sources.list.d ]; then \
+#       find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | \
+#         xargs -0 sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
+#                        -e 's|http://security.debian.org|https://security.debian.org|g' || true; \
+#     fi
 
 # Install isolate-vm dependencies, these are needed by the @backstage/plugin-scaffolder-backend.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

@@ -7,13 +7,15 @@
 #
 
 backstage:
-  replicas: 2
+  replicas: 1
 
   image:
     registry: ghcr.io
     repository: joelnathan544/om-backstage
     tag: latest
     pullPolicy: IfNotPresent
+    pullSecrets:
+      - ghcr-login
 
   resources:
     requests:
@@ -25,19 +27,20 @@ backstage:
 
   appConfig:
     app:
-      baseUrl: https://portal.example.com
+      title: OM Platform Portal
+      baseUrl: http://localhost:7007
 
     backend:
-      baseUrl: https://portal.example.com
+      baseUrl: http://localhost:7007
       cors:
-        origin: https://portal.example.com
+        origin: http://localhost:7007
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
 
       database:
         client: pg
         connection:
-          host: backstage-postgresql
+          host: 10.43.223.94
           port: 5432
           user: postgres
           password: ${POSTGRES_PASSWORD}
@@ -87,16 +90,19 @@ backstage:
           target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
           rules:
             - allow: [Component, Group, User]
-        - type: github-discovery
-          target: https://github.com/${GITHUB_ORG}/*/blob/main/catalog-info.yaml
 
     # Optional: wire these later once you have stable endpoints + credentials.
     # argocd:
     #   baseUrl: https://argocd.example.com
     # prometheus:
     #   proxyPath: /prometheus/api
-    # grafana:
-    #   domain: https://grafana.example.com
+    grafana:
+      domain: https://grafana.example.com
+      unifiedAlerting: false
+
+    # Organization
+    organization:
+      name: OM Platform
 
   extraEnvVars:
     - name: POSTGRES_PASSWORD
@@ -130,22 +136,25 @@ backstage:
           name: backstage-secrets
           key: GOOGLE_CLIENT_SECRET
 
-  ingress:
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: portal.example.com
+  tls:
     enabled: true
-    className: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    host: portal.example.com
-    tls:
-      enabled: true
-      secretName: backstage-tls
+    secretName: backstage-tls
 
 postgresql:
   enabled: true
+  persistence:
+    enabled: false
   auth:
     database: backstage
     username: postgres
+    password: postgres
   primary:
     persistence:
-      enabled: true
+      enabled: false
       size: 20Gi
