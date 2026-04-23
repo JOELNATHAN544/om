@@ -28,12 +28,12 @@ backstage:
   appConfig:
     app:
       title: OM Platform Portal
-      baseUrl: http://localhost:7007
+      baseUrl: http://backstage.local:30007
 
     backend:
-      baseUrl: http://localhost:7007
+      baseUrl: http://backstage.local:30007
       cors:
-        origin: http://localhost:7007
+        origin: http://backstage.local:30007
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
 
@@ -52,10 +52,10 @@ backstage:
         store: memory
 
     auth:
-      environment: production
+      environment: development
       providers:
         google:
-          production:
+          development:
             clientId: ${GOOGLE_CLIENT_ID}
             clientSecret: ${GOOGLE_CLIENT_SECRET}
             signIn:
@@ -134,15 +134,13 @@ backstage:
           name: backstage-secrets
           key: GOOGLE_CLIENT_SECRET
 
+service:
+  type: NodePort
+  nodePorts:
+    backend: 30007
+
 ingress:
   enabled: false
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  host: portal.example.com
-  tls:
-    enabled: true
-    secretName: backstage-tls
 
 postgresql:
   enabled: true

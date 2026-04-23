@@ -6,19 +6,19 @@
 
 app:
   title: OM Platform Portal
-  baseUrl: https://portal.example.com
+  baseUrl: http://backstage.local:30007
 
 organization:
   name: Your Organization
 
 backend:
-  baseUrl: https://portal.example.com
+  baseUrl: http://backstage.local:30007
   listen:
     port: 7007
   csp:
     connect-src: ["'self'", 'http:', 'https:']
   cors:
-    origin: https://portal.example.com
+    origin: http://backstage.local:30007
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
 
