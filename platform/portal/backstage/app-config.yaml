@@ -71,7 +71,7 @@ catalog:
   providers:
     github:
       om-platform:
-        organization: 'JOELNATHAN544'
+        organization: ${GITHUB_ORG}
         catalogPath: '/catalog-info.yaml'
         filters:
           repository: '.*'

@@ -81,6 +81,38 @@ TOKEN="$(curl -s "http://localhost:7007/api/auth/guest/refresh?env=development" 
 # Check your user exists in the catalog
 curl -i -H "Authorization: Bearer ${TOKEN}" \
   "http://localhost:7007/api/catalog/entities/by-name/user/default/wankojoelnathan"
+
+## GitHub integration (catalog + templates)
+
+Backstage needs a GitHub token to:
+
+- Read catalog files from GitHub URLs (`catalog.locations`)
+- Discover repositories that contain `catalog-info.yaml` (`catalog.providers.github.*`)
+- Create PRs/repos when using the Scaffolder GitHub actions
+
+### 1) Create a GitHub token
+
+For a Personal Access Token (PAT), a typical starting point is:
+
+- Private repos: `repo`
+- Scaffolder with GitHub Actions templates: `workflow`
+- Org discovery (optional): `read:org`
+
+### 2) Provide `GITHUB_TOKEN` locally
+
+```sh
+export GITHUB_TOKEN="..."
+```
+
+### 3) Point Backstage at your org/repo (production + Helm)
+
+`platform/portal/backstage/app-config.production.yaml` and `helm/values/dev/backstage-values.yaml`
+use:
+
+- `GITHUB_ORG` (default: `skyengpro`)
+- `GITHUB_REPO` (default: `om`)
+
+Set them to match where this repo actually lives.
 ```
 
 ## Deploy (Helm + ArgoCD)

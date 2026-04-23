@@ -70,33 +70,33 @@ catalog:
   locations:
     # Platform users (needed for Google sign-in resolver)
     - type: url
-      target: https://github.com/skyengpro/om/blob/main/platform/portal/backstage/catalog/users.yaml
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
       rules:
         - allow: [Group, User]
 
+    # Backstage component + default org group (optional bootstrap)
+    - type: url
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
+      rules:
+        - allow: [Component, Group, User]
+
     # Platform templates
     - type: url
-      target: https://github.com/skyengpro/om/blob/main/platform/portal/backstage/templates/new-application/template.yaml
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/new-application/template.yaml
       rules:
         - allow: [Template]
     - type: url
-      target: https://github.com/skyengpro/om/blob/main/platform/portal/backstage/templates/request-service/template.yaml
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/request-service/template.yaml
       rules:
         - allow: [Template]
     - type: url
-      target: https://github.com/skyengpro/om/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
       rules:
         - allow: [Template]
-
-    # Platform catalog
-    - type: url
-      target: https://github.com/skyengpro/om/blob/main/catalog/all.yaml
-      rules:
-        - allow: [Component, System, API, Resource, Template, Group]
 
     # Team catalogs (auto-discovered)
     - type: github-discovery
-      target: https://github.com/skyengpro/*/blob/main/catalog-info.yaml
+      target: https://github.com/${GITHUB_ORG}/*/blob/main/catalog-info.yaml
 
 # =============================================================================
 # Scaffolder (Templates)
