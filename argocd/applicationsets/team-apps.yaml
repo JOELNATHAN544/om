@@ -16,7 +16,7 @@ spec:
   generators:
     # Git Generator - Discover applications from directory structure
     - git:
-        repoURL: https://github.com/skyengpro/om.git
+        repoURL: https://github.com/JOELNATHAN544/om.git
         revision: main
         directories:
           # Each team has a directory: apps/<team>/<app>/
@@ -37,7 +37,7 @@ spec:
       project: 'team-{{path[1]}}'
 
       source:
-        repoURL: https://github.com/skyengpro/om.git
+        repoURL: https://github.com/JOELNATHAN544/om.git
         targetRevision: main
         path: '{{path}}'
         helm:
@@ -91,10 +91,13 @@ spec:
               elements:
                 - env: dev
                   cluster: https://kubernetes.default.svc
+                  project: development
                 - env: staging
                   cluster: https://kubernetes.default.svc
+                  project: development
                 - env: prod
                   cluster: https://kubernetes.default.svc
+                  project: production
 
   template:
     metadata:
@@ -105,10 +108,10 @@ spec:
         team: '{{team}}'
         environment: '{{env}}'
     spec:
-      project: '{{env}}onment'
+      project: '{{project}}'
 
       source:
-        repoURL: https://github.com/skyengpro/om.git
+        repoURL: https://github.com/JOELNATHAN544/om.git
         targetRevision: main
         path: 'apps/{{team}}'
         helm:

@@ -111,7 +111,7 @@ export GITHUB_TOKEN="..."
 
 ### 3) Point Backstage at your org/repo (production + Helm)
 
-`platform/portal/backstage/app-config.production.yaml` and `helm/values/dev/backstage-values.yaml`
+`platform/portal/backstage/app-config.production.yaml` and `helm/values/prod/backstage-values.yaml`
 use:
 
 - `GITHUB_ORG`
@@ -125,7 +125,7 @@ Set them to match where this repo actually lives.
 This repo deploys Backstage via ArgoCD using the upstream Backstage Helm chart:
 
 - ArgoCD app: `argocd/apps/infrastructure/backstage.yaml`
-- Values: `helm/values/dev/backstage-values.yaml`
+- Values: `helm/values/prod/backstage-values.yaml`
 
 Checklist:
 

@@ -16,7 +16,7 @@ data:
   # Repository configuration
   repositories: |
     - type: git
-      url: https://github.com/skyengpro/om.git
+      url: https://github.com/JOELNATHAN544/om.git
       name: om-platform
 
   # Resource tracking

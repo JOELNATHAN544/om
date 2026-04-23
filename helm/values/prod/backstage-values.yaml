@@ -1,0 +1,151 @@
+# Backstage Helm Values (Production)
+# Upstream Chart: https://github.com/backstage/charts
+#
+# Notes:
+# - Replace `portal.example.com` with your real domain.
+# - Avoid using `latest` tags in production; pin an immutable tag.
+#
+
+backstage:
+  replicas: 2
+
+  image:
+    registry: ghcr.io
+    repository: joelnathan544/om-backstage
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  appConfig:
+    app:
+      baseUrl: https://portal.example.com
+
+    backend:
+      baseUrl: https://portal.example.com
+      cors:
+        origin: https://portal.example.com
+        methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+        credentials: true
+
+      database:
+        client: pg
+        connection:
+          host: backstage-postgresql
+          port: 5432
+          user: postgres
+          password: ${POSTGRES_PASSWORD}
+          database: backstage
+
+      # For a first prod cut, keep in-memory cache.
+      # Recommended next step: deploy Redis and switch to `store: redis`.
+      cache:
+        store: memory
+
+    auth:
+      environment: production
+      providers:
+        google:
+          production:
+            clientId: ${GOOGLE_CLIENT_ID}
+            clientSecret: ${GOOGLE_CLIENT_SECRET}
+            signIn:
+              resolvers:
+                - resolver: emailMatchingUserEntityProfileEmail
+                - resolver: emailLocalPartMatchingUserEntityName
+
+    integrations:
+      github:
+        - host: github.com
+          token: ${GITHUB_TOKEN}
+
+    catalog:
+      rules:
+        - allow: [Component, System, API, Resource, Location, Group, User, Template]
+      providers:
+        github:
+          om-platform:
+            organization: ${GITHUB_ORG}
+            catalogPath: '/catalog-info.yaml'
+            filters:
+              repository: '.*'
+            schedule:
+              frequency: { minutes: 30 }
+              timeout: { minutes: 3 }
+      locations:
+        - type: url
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
+          rules:
+            - allow: [Group, User]
+        - type: url
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
+          rules:
+            - allow: [Component, Group, User]
+        - type: github-discovery
+          target: https://github.com/${GITHUB_ORG}/*/blob/main/catalog-info.yaml
+
+    # Optional: wire these later once you have stable endpoints + credentials.
+    # argocd:
+    #   baseUrl: https://argocd.example.com
+    # prometheus:
+    #   proxyPath: /prometheus/api
+    # grafana:
+    #   domain: https://grafana.example.com
+
+  extraEnvVars:
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: backstage-postgresql
+          key: postgres-password
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_TOKEN
+    - name: GITHUB_ORG
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_ORG
+    - name: GITHUB_REPO
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_REPO
+    - name: GOOGLE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_ID
+    - name: GOOGLE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_SECRET
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    host: portal.example.com
+    tls:
+      enabled: true
+      secretName: backstage-tls
+
+postgresql:
+  enabled: true
+  auth:
+    database: backstage
+    username: postgres
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi

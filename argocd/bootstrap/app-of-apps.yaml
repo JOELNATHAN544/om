@@ -19,7 +19,7 @@ spec:
   project: platform
 
   source:
-    repoURL: https://github.com/skyengpro/om.git
+    repoURL: https://github.com/JOELNATHAN544/om.git
     targetRevision: main
     path: argocd/apps
 
@@ -67,7 +67,7 @@ spec:
   project: platform
 
   source:
-    repoURL: https://github.com/skyengpro/om.git
+    repoURL: https://github.com/JOELNATHAN544/om.git
     targetRevision: main
     path: argocd/apps/infrastructure
 
