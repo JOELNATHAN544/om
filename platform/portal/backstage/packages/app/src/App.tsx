@@ -36,7 +36,6 @@ export default createApp({
                     message: 'Sign in using Google',
                     apiRef: googleAuthApiRef,
                   },
-                  'guest',
                 ]}
               />
             ),
