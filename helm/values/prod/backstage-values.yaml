@@ -13,7 +13,7 @@ backstage:
     registry: ghcr.io
     repository: joelnathan544/om-backstage
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     pullSecrets:
       - ghcr-login
 
@@ -59,9 +59,7 @@ backstage:
             clientId: ${GOOGLE_CLIENT_ID}
             clientSecret: ${GOOGLE_CLIENT_SECRET}
             signIn:
-              resolvers:
-                - resolver: emailMatchingUserEntityProfileEmail
-                - resolver: emailLocalPartMatchingUserEntityName
+              resolvers: [] # Handled by custom code in index.ts
 
     integrations:
       github:

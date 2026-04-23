@@ -7,6 +7,9 @@
  */
 
 import { createBackend } from '@backstage/backend-defaults';
+import { createBackendModule } from '@backstage/backend-plugin-api';
+import { authProvidersExtensionPoint, createOAuthProviderFactory } from '@backstage/plugin-auth-node';
+import { googleAuthenticator } from '@backstage/plugin-auth-backend-module-google-provider';
 
 const backend = createBackend();
 const enablePgSearch =
@@ -28,8 +31,38 @@ backend.add(import('@backstage/plugin-techdocs-backend'));
 
 // auth plugin
 backend.add(import('@backstage/plugin-auth-backend'));
-backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
-backend.add(import('@backstage/plugin-auth-backend-module-google-provider'));
+// We use a custom module below to configure the Google provider with our resolver
+backend.add(
+  createBackendModule({
+    pluginId: 'auth',
+    moduleId: 'google-auth-config',
+    register(reg) {
+      reg.registerInit({
+        deps: { providers: authProvidersExtensionPoint },
+        async init({ providers }) {
+          providers.registerProvider({
+            providerId: 'google',
+            factory: createOAuthProviderFactory({
+              authenticator: googleAuthenticator,
+              async signInResolver(info, ctx) {
+                const { profile: { email } } = info;
+                if (!email) throw new Error('Login failed: No email profile found');
+                
+                const [userId] = email.split('@');
+                return ctx.issueToken({
+                  claims: {
+                    sub: `user:default/${userId}`,
+                    ent: [`user:default/${userId}`],
+                  },
+                });
+              },
+            }),
+          });
+        },
+      });
+    },
+  })
+);
 
 // catalog plugin
 backend.add(import('@backstage/plugin-catalog-backend'));
