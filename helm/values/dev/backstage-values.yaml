@@ -4,9 +4,9 @@
 backstage:
   image:
     registry: ghcr.io
-    repository: skyengpro/backstage
+    repository: joelnathan544/om-backstage
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
   appConfig:
     app:
@@ -39,6 +39,8 @@ backstage:
               resolvers:
                 - resolver: emailMatchingUserEntityProfileEmail
                 - resolver: emailLocalPartMatchingUserEntityName
+        guest:
+          userEntityRef: user:default/guest
 
     # Needed for reading catalog entities and templates from GitHub URLs, and for the GitHub discovery provider.
     integrations:
@@ -87,9 +89,15 @@ backstage:
           name: backstage-secrets
           key: GITHUB_TOKEN
     - name: GITHUB_ORG
-      value: skyengpro
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_ORG
     - name: GITHUB_REPO
-      value: om
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_REPO
     - name: GOOGLE_CLIENT_ID
       valueFrom:
         secretKeyRef:
@@ -103,18 +111,14 @@ backstage:
 
   ingress:
     enabled: true
-    className: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-      kubernetes.io/ingress.class: nginx
+    className: traefik
+    annotations: {}
     host: portal.example.com
     tls:
-      enabled: true
-      secretName: backstage-tls
+      enabled: false
 
 postgresql:
   enabled: true
   auth:
     database: backstage
     username: postgres
-    existingSecret: backstage-postgresql

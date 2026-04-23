@@ -14,8 +14,27 @@
 
 FROM node:24-trixie-slim
 
+# Optional: override DNS resolver during build (helps if Docker inherits a broken DNS server).
+# Usage: `docker build --build-arg APT_DNS=1.1.1.1 ...`
+ARG APT_DNS=""
+
 # Set Python interpreter for `node-gyp` to use
 ENV PYTHON=/usr/bin/python3
+
+# If a custom DNS was provided, use it for `apt-get` (and any other network calls in the build).
+RUN if [ -n "${APT_DNS}" ]; then printf "nameserver %s\n" "${APT_DNS}" > /etc/resolv.conf; fi
+
+# Some networks block outbound HTTP (port 80). Debian sources in slim images often use HTTP by default.
+# Switch to HTTPS so `apt-get update` works in those environments.
+RUN if [ -f /etc/apt/sources.list ]; then \
+      sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
+             -e 's|http://security.debian.org|https://security.debian.org|g' /etc/apt/sources.list; \
+    fi; \
+    if [ -d /etc/apt/sources.list.d ]; then \
+      find /etc/apt/sources.list.d -maxdepth 1 -type f -print0 | \
+        xargs -0 sed -i -e 's|http://deb.debian.org|https://deb.debian.org|g' \
+                       -e 's|http://security.debian.org|https://security.debian.org|g' || true; \
+    fi
 
 # Install isolate-vm dependencies, these are needed by the @backstage/plugin-scaffolder-backend.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

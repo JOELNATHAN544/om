@@ -27,6 +27,8 @@ Local dev (shell env vars):
 ```sh
 export GOOGLE_CLIENT_ID="..."
 export GOOGLE_CLIENT_SECRET="..."
+export GITHUB_ORG="..."        # required (catalog GitHub provider)
+export GITHUB_TOKEN="..."      # required (GitHub integration)
 yarn start
 ```
 
@@ -37,6 +39,8 @@ Run frontend + backend in separate terminals (no scripts):
 cd platform/portal/backstage
 export GOOGLE_CLIENT_ID="..."
 export GOOGLE_CLIENT_SECRET="..."
+export GITHUB_ORG="..."
+export GITHUB_TOKEN="..."
 export APP_CONFIG_FILES=app-config.yaml,app-config.local.yaml
 yarn workspace backend start
 ```
@@ -81,6 +85,7 @@ TOKEN="$(curl -s "http://localhost:7007/api/auth/guest/refresh?env=development" 
 # Check your user exists in the catalog
 curl -i -H "Authorization: Bearer ${TOKEN}" \
   "http://localhost:7007/api/catalog/entities/by-name/user/default/wankojoelnathan"
+```
 
 ## GitHub integration (catalog + templates)
 
@@ -109,8 +114,8 @@ export GITHUB_TOKEN="..."
 `platform/portal/backstage/app-config.production.yaml` and `helm/values/dev/backstage-values.yaml`
 use:
 
-- `GITHUB_ORG` (default: `skyengpro`)
-- `GITHUB_REPO` (default: `om`)
+- `GITHUB_ORG`
+- `GITHUB_REPO`
 
 Set them to match where this repo actually lives.
 ```

@@ -9,6 +9,9 @@
 import { createBackend } from '@backstage/backend-defaults';
 
 const backend = createBackend();
+const enablePgSearch =
+  process.env.BACKSTAGE_USE_PG_SEARCH === 'true' ||
+  process.env.NODE_ENV === 'production';
 
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
@@ -46,15 +49,17 @@ backend.add(
 );
 
 // search plugin
-backend.add(import('@backstage/plugin-search-backend'));
+if (enablePgSearch) {
+  backend.add(import('@backstage/plugin-search-backend'));
 
-// search engine
-// See https://backstage.io/docs/features/search/search-engines
-backend.add(import('@backstage/plugin-search-backend-module-pg'));
+  // search engine
+  // See https://backstage.io/docs/features/search/search-engines
+  backend.add(import('@backstage/plugin-search-backend-module-pg'));
 
-// search collators
-backend.add(import('@backstage/plugin-search-backend-module-catalog'));
-backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
+  // search collators
+  backend.add(import('@backstage/plugin-search-backend-module-catalog'));
+  backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
+}
 
 // kubernetes plugin
 backend.add(import('@backstage/plugin-kubernetes-backend'));
