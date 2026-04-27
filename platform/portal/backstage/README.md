@@ -203,6 +203,178 @@ kubectl get pods -n backstage -w
 
 ---
 
+## Completing Plugin Integrations
+
+The following plugins are **installed and configured** but require real service credentials to display live data. Run the commands for each plugin once you have the corresponding service available.
+
+> All plugin configuration structure is already in place in `app-config.production.yaml` and `helm/values/prod/backstage-values.yaml`. Only secrets and URLs need updating.
+
+---
+
+### Kubernetes Plugin
+
+Displays live Kubernetes resources (pods, deployments, services) inside the catalog.
+
+**1. Create a Kubernetes Service Account for Backstage:**
+
+```sh
+# Create a dedicated service account
+kubectl create serviceaccount backstage-k8s-viewer -n backstage
+
+# Bind it to cluster-reader role
+kubectl create clusterrolebinding backstage-k8s-viewer \
+  --clusterrole=view \
+  --serviceaccount=backstage:backstage-k8s-viewer
+
+# Create a long-lived token (k8s 1.24+)
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backstage-k8s-token
+  namespace: backstage
+  annotations:
+    kubernetes.io/service-account.name: backstage-k8s-viewer
+type: kubernetes.io/service-account-token
+EOF
+```
+
+**2. Retrieve the credentials:**
+
+```sh
+# Get the service account token
+export K8S_TOKEN=$(kubectl get secret backstage-k8s-token \
+  -n backstage \
+  -o jsonpath='{.data.token}' | base64 -d)
+
+# Get the CA certificate (base64 encoded)
+export K8S_CA=$(kubectl get secret backstage-k8s-token \
+  -n backstage \
+  -o jsonpath='{.data.ca\.crt}')
+
+# Get the API server URL
+export K8S_URL=$(kubectl cluster-info | grep "control plane" | awk '{print $NF}')
+
+echo "Token: $K8S_TOKEN"
+echo "CA Data: $K8S_CA"
+echo "API URL: $K8S_URL"
+```
+
+**3. Add credentials to the secret:**
+
+```sh
+kubectl patch secret backstage-secrets -n backstage \
+  --type='merge' \
+  -p="{\"stringData\":{
+    \"KUBERNETES_API_URL\":\"$K8S_URL\",
+    \"KUBERNETES_SA_TOKEN\":\"$K8S_TOKEN\",
+    \"KUBERNETES_CA_DATA\":\"$K8S_CA\"
+  }}"
+
+# Restart Backstage to pick up new secrets
+kubectl rollout restart deployment backstage -n backstage
+```
+
+---
+
+### ArgoCD Plugin
+
+Displays ArgoCD application sync status and health inside the catalog.
+
+**1. Find your ArgoCD admin password:**
+
+```sh
+# If using the default ArgoCD installation
+kubectl get secret argocd-initial-admin-secret \
+  -n argocd \
+  -o jsonpath='{.data.password}' | base64 -d
+```
+
+**2. Update `app-config.production.yaml` with your real ArgoCD URL:**
+
+In `platform/portal/backstage/app-config.production.yaml`, update:
+```yaml
+argocd:
+  baseUrl: https://<your-real-argocd-url>   # e.g. https://argocd.cloud.local
+```
+
+Then rebuild and push the image (see Build & Deploy section).
+
+**3. Add ArgoCD credentials to the secret:**
+
+```sh
+kubectl patch secret backstage-secrets -n backstage \
+  --type='merge' \
+  -p='{"stringData":{
+    "ARGOCD_USERNAME":"admin",
+    "ARGOCD_PASSWORD":"<your-argocd-admin-password>"
+  }}'
+
+# Restart Backstage to pick up new secrets
+kubectl rollout restart deployment backstage -n backstage
+```
+
+---
+
+### TechDocs — S3 Backend
+
+Stores generated documentation in an S3-compatible bucket so it persists across pod restarts.
+
+**Option A — AWS S3:**
+
+```sh
+# Create S3 bucket
+aws s3 mb s3://om-techdocs --region eu-west-1
+
+# Add credentials to secret
+kubectl patch secret backstage-secrets -n backstage \
+  --type='merge' \
+  -p='{"stringData":{
+    "TECHDOCS_BUCKET":"om-techdocs",
+    "AWS_REGION":"eu-west-1",
+    "AWS_ACCESS_KEY_ID":"<your-access-key-id>",
+    "AWS_SECRET_ACCESS_KEY":"<your-secret-access-key>"
+  }}'
+
+# Restart Backstage to pick up new secrets
+kubectl rollout restart deployment backstage -n backstage
+```
+
+**Option B — MinIO (self-hosted S3-compatible):**
+
+```sh
+# If you have a MinIO instance running
+kubectl patch secret backstage-secrets -n backstage \
+  --type='merge' \
+  -p='{"stringData":{
+    "TECHDOCS_BUCKET":"om-techdocs",
+    "AWS_REGION":"us-east-1",
+    "AWS_ACCESS_KEY_ID":"<minio-access-key>",
+    "AWS_SECRET_ACCESS_KEY":"<minio-secret-key>"
+  }}'
+
+# Also update the endpoint in app-config.production.yaml:
+# techdocs.publisher.awsS3.endpoint: https://<your-minio-url>
+
+kubectl rollout restart deployment backstage -n backstage
+```
+
+---
+
+### Verifying Plugin Integration
+
+After adding credentials and restarting, check that no errors appear in the logs:
+
+```sh
+kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail 100 | grep -E "error|warn|argocd|kubernetes|techdocs"
+```
+
+To verify the Kubernetes plugin specifically, open any catalog component and look for the **Kubernetes** tab.
+To verify ArgoCD, open any catalog component and look for the **ArgoCD** tab.
+To verify TechDocs, click **Docs** in the sidebar and open any component's documentation.
+
+---
+
 ## Maintenance Commands
 
 ### View Pod Logs
