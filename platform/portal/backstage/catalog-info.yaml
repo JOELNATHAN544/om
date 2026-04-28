@@ -17,3 +17,13 @@ spec:
   type: website
   owner: platform-team
   lifecycle: production
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: platform-team
+  description: The platform engineering team
+spec:
+  type: team
+  children: []
