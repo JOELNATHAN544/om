@@ -87,6 +87,40 @@ backstage:
           target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
           rules:
             - allow: [Component, Group, User]
+        - type: url
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/new-application/template.yaml
+          rules: [ { allow: [ Template ] } ]
+        - type: url
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/request-service/template.yaml
+          rules: [ { allow: [ Template ] } ]
+        - type: url
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
+          rules: [ { allow: [ Template ] } ]
+
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: local-cluster
+              url: https://kubernetes.default.svc
+              authProvider: serviceAccount
+              serviceAccountToken: ${KUBERNETES_SA_TOKEN}
+              skipTLSVerify: false
+              caData: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJlRENDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUzTnpZMk9EYzBNRGd3SGhjTk1qWXdOREl3TVRFeE5qUTRXaGNOTXpZd05ERTNNVEV4TmpRNApXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUzTnpZMk9EYzBNRGd3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFRcFFvcmhaQU96QXkyVHczTGJuTFBwYk9RZ0g0c0lRZmVzRE1URkYwNmQKZFBHREF6ZnRobnpWRzZJeVVqdi9ObjNXSzVGckQxZ1RzVzN4MHdRSHF4WkZvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVWoyQWVpQmtrQzlXTDVZSjdaNHhBCkZON1lyU013Q2dZSUtvWkl6ajBFQXdJRFNRQXdSZ0loQU14UHh6WU1LZHk3L055TThhdXM5Y2ZJcUIzL1FXV00KeTdMWDNhOUF2cEszQWlFQTJpV1NuKzJvR0NWRjRQcUZSRU9tejJIUVpyT0FOdTlLKzFZNWQxbGp3cEk9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+
+    techdocs:
+      builder: local
+      generator:
+        runIn: local
+      publisher:
+        type: local
+
+    argocd:
+      baseUrl: http://argocd-server.argocd.svc
+      appDetailsMethods:
+        - type: backstage
 
     # Optional: wire these later once you have stable endpoints + credentials.
     # argocd:
@@ -132,6 +166,11 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: GOOGLE_CLIENT_SECRET
+    - name: KUBERNETES_SA_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_SA_TOKEN
 
 service:
   type: ClusterIP

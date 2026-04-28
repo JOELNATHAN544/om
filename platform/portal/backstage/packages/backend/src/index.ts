@@ -52,7 +52,10 @@ backend.add(
                 return ctx.issueToken({
                   claims: {
                     sub: `user:default/${userId}`,
-                    ent: [`user:default/${userId}`],
+                    ent: [
+                      `user:default/${userId}`,
+                      `group:default/platform-team`
+                    ],
                   },
                 });
               },
