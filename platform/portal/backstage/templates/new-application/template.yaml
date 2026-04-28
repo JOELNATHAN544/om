@@ -276,14 +276,6 @@ spec:
             service: ${{ parameters.cache }}
             size: small
 
-    # Step 6: Register in catalog
-    - id: register
-      name: Register in Catalog
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps['publish-github'].output.repoContentsUrl }}
-        catalogInfoPath: /catalog-info.yaml
-
   # ==========================================================================
   # Output
   # ==========================================================================
@@ -294,7 +286,7 @@ spec:
         icon: github
       - title: View in Catalog
         icon: catalog
-        entityRef: ${{ steps['register'].output.entityRef }}
+        entityRef: component:default/${{ parameters.name }}
       - title: Deployment PR
         url: ${{ steps['create-deployment-pr'].output.remoteUrl }}
         icon: github
