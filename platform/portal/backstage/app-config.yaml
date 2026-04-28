@@ -164,10 +164,7 @@ techdocs:
   generator:
     runIn: 'local'
   publisher:
-    type: 'awsS3'
-    awsS3:
-      bucketName: ${TECHDOCS_BUCKET}
-      region: ${AWS_REGION}
+    type: 'local'
 
 # =============================================================================
 # Search

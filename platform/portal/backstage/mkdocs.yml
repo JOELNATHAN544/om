@@ -1,0 +1,17 @@
+site_name: OM Platform Portal
+site_description: Self-service developer portal documentation
+site_author: Platform Team
+
+docs_dir: docs
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Plugins:
+      - Kubernetes: plugins/kubernetes.md
+      - ArgoCD: plugins/argocd.md
+      - TechDocs: plugins/techdocs.md
+
+plugins:
+  - techdocs-core

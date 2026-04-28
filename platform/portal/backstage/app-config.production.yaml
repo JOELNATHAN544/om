@@ -135,14 +135,14 @@ kubernetes:
 # ArgoCD
 # =============================================================================
 argocd:
-  baseUrl: https://argocd.example.com
+  baseUrl: https://argocd-server.argocd.svc.cluster.local
   username: ${ARGOCD_USERNAME}
   password: ${ARGOCD_PASSWORD}
   appLocatorMethods:
     - type: config
       instances:
         - name: production
-          url: https://argocd.example.com
+          url: https://argocd-server.argocd.svc.cluster.local
           username: ${ARGOCD_USERNAME}
           password: ${ARGOCD_PASSWORD}
 
@@ -167,10 +167,7 @@ techdocs:
   generator:
     runIn: 'local'
   publisher:
-    type: 'awsS3'
-    awsS3:
-      bucketName: ${TECHDOCS_BUCKET}
-      region: ${AWS_REGION}
+    type: 'local'
 
 # =============================================================================
 # Search

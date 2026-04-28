@@ -40,8 +40,12 @@ RUN if [ -n "${APT_DNS}" ]; then printf "nameserver %s\n" "${APT_DNS}" > /etc/re
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get install -y --no-install-recommends python3 g++ build-essential && \
+    apt-get install -y --no-install-recommends python3 python3-pip g++ build-essential && \
     rm -rf /var/lib/apt/lists/*
+
+# Install TechDocs dependencies (mkdocs + material theme)
+RUN pip3 install mkdocs-techdocs-core==1.* --break-system-packages
+
 
 # Install sqlite3 dependencies. You can skip this if you don't use sqlite3 in the image,
 # in which case you should also move better-sqlite3 to "devDependencies" in package.json.

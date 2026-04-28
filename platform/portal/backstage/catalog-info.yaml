@@ -2,15 +2,25 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: backstage
-  description: An example of a Backstage application.
-  # Example for optional annotations
-  # annotations:
-  #   github.com/project-slug: backstage/backstage
-  #   backstage.io/techdocs-ref: dir:.
+  description: OM Platform Developer Portal — self-service portal built on Backstage.
+  annotations:
+    # TechDocs — render documentation from the docs/ folder
+    backstage.io/techdocs-ref: dir:.
+    # Kubernetes plugin — show pods/deployments in the 'backstage' namespace
+    backstage.io/kubernetes-id: backstage
+    backstage.io/kubernetes-namespace: backstage
+    # ArgoCD plugin — show sync status of the 'backstage' ArgoCD app
+    argocd/app-name: backstage
+    # GitHub Actions — show CI runs
+    github.com/project-slug: JOELNATHAN544/om
+  links:
+    - url: https://portal.backstage.com
+      title: Live Portal
+      icon: web
 spec:
   type: website
-  owner: user:guest
-  lifecycle: experimental
+  owner: group:platform-team
+  lifecycle: production
 
 ---
 apiVersion: backstage.io/v1alpha1
