@@ -115,7 +115,10 @@ backstage:
       generator:
         runIn: local
       publisher:
-        type: local
+        type: awsS3
+        awsS3:
+          bucketName: ${TECHDOCS_BUCKET_NAME}
+          region: ${AWS_REGION}
 
     argocd:
       baseUrl: http://argocd-server.argocd.svc
@@ -171,6 +174,26 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: KUBERNETES_SA_TOKEN
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_ACCESS_KEY_ID
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_SECRET_ACCESS_KEY
+    - name: AWS_REGION
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_REGION
+    - name: TECHDOCS_BUCKET_NAME
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: TECHDOCS_BUCKET_NAME
 
 service:
   type: ClusterIP
