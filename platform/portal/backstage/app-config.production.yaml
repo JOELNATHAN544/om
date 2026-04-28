@@ -1,42 +1,10 @@
-# =============================================================================
-# Backstage Application Configuration
-# =============================================================================
-# Configuration for the self-service developer portal.
-# =============================================================================
-
 app:
+  baseUrl: https://portal.backstage.com
   title: OM Platform Portal
-  baseUrl: https://portal.backstage.com
+grafana:
+  domain: https://grafana.example.com
+  unifiedAlerting: false
 
-organization:
-  name: Your Organization
-
-backend:
-  baseUrl: https://portal.backstage.com
-  listen:
-    port: 7007
-  csp:
-    connect-src: ["'self'", 'http:', 'https:']
-    origin: https://portal.backstage.com
-    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
-    credentials: true
-
-  database:
-    client: pg
-    connection:
-      host: ${POSTGRES_HOST}
-      port: ${POSTGRES_PORT}
-      user: ${POSTGRES_USER}
-      password: ${POSTGRES_PASSWORD}
-      database: backstage
-
-  cache:
-    store: redis
-    connection: redis://${REDIS_HOST}:6379
-
-# =============================================================================
-# Authentication
-# =============================================================================
 auth:
   environment: production
   providers:
@@ -45,142 +13,74 @@ auth:
         clientId: ${GOOGLE_CLIENT_ID}
         clientSecret: ${GOOGLE_CLIENT_SECRET}
         signIn:
-          resolvers:
-            - resolver: emailMatchingUserEntityProfileEmail
-            - resolver: emailLocalPartMatchingUserEntityName
+          resolvers: [] # Handled by custom code in index.ts
 
-# =============================================================================
-# Integrations
-# =============================================================================
-integrations:
-  github:
-    - host: github.com
-      token: ${GITHUB_TOKEN}
+backend:
+  baseUrl: https://portal.backstage.com
+  cache:
+    store: memory
+  cors:
+    credentials: true
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    origin: https://portal.backstage.com
+  database:
+    client: pg
+    connection:
+      database: backstage
+      host: backstage-postgresql.backstage.svc.cluster.local
+      password: ${POSTGRES_PASSWORD}
+      port: 5432
+      user: postgres
 
-# =============================================================================
-# Catalog
-# =============================================================================
 catalog:
-  import:
-    entityFilename: catalog-info.yaml
-    pullRequestBranchName: backstage-integration
-  rules:
-    - allow: [Component, System, API, Resource, Location, Group, User, Template]
   locations:
-    # Platform users (needed for Google sign-in resolver)
     - type: url
       target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
-      rules:
-        - allow: [Group, User]
-
-    # Backstage component + default org group (optional bootstrap)
+      rules: [{allow: [Group, User]}]
     - type: url
       target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
-      rules:
-        - allow: [Component, Group, User]
-
-    # Platform templates
+      rules: [{allow: [Component, Group, User]}]
     - type: url
       target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/new-application/template.yaml
-      rules:
-        - allow: [Template]
+      rules: [{allow: [Template]}]
     - type: url
       target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/request-service/template.yaml
-      rules:
-        - allow: [Template]
+      rules: [{allow: [Template]}]
     - type: url
       target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
-      rules:
-        - allow: [Template]
+      rules: [{allow: [Template]}]
+  rules:
+    - allow: [Component, System, API, Resource, Location, Group, User, Template]
 
-    # Team catalogs (auto-discovered)
-    - type: github-discovery
-      target: https://github.com/${GITHUB_ORG}/*/blob/main/catalog-info.yaml
-
-# =============================================================================
-# Scaffolder (Templates)
-# =============================================================================
-scaffolder:
-  defaultAuthor:
-    name: Backstage
-    email: backstage@example.com
-  defaultCommitMessage: "Initial commit from Backstage template"
-
-# =============================================================================
-# Kubernetes
-# =============================================================================
 kubernetes:
   serviceLocatorMethod:
     type: multiTenant
   clusterLocatorMethods:
     - type: config
       clusters:
-        - url: ${KUBERNETES_API_URL}
-          name: production
+        - name: local-cluster
+          url: https://kubernetes.default.svc
           authProvider: serviceAccount
           serviceAccountToken: ${KUBERNETES_SA_TOKEN}
-          caData: ${KUBERNETES_CA_DATA}
-          customResources:
-            - group: 'platform.om.io'
-              apiVersion: 'v1alpha1'
-              plural: 'tenants'
-            - group: 'platform.om.io'
-              apiVersion: 'v1alpha1'
-              plural: 'servicerequests'
-            - group: 'argoproj.io'
-              apiVersion: 'v1alpha1'
-              plural: 'applications'
+          skipTLSVerify: false
+          caData: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUJlRENDQVIyZ0F3SUJBZ0lCQURBS0JnZ3Foa2pPUFFRREFqQWpNU0V3SHdZRFZRUUREQmhyTTNNdGMyVnkKZG1WeUxXTmhRREUzTnpZMk9EYzBNRGd3SGhjTk1qWXdOREl3TVRFeE5qUTRXaGNOTXpZd05ERTNNVEV4TmpRNApXakFqTVNFd0h3WURWUVFEREJock0zTXRjMlZ5ZG1WeUxXTmhRREUzTnpZMk9EYzBNRGd3V1RBVEJnY3Foa2pPClBRSUJCZ2dxaGtqT1BRTUJCd05DQUFRcFFvcmhaQU96QXkyVHczTGJuTFBwYk9RZ0g0c0lRZmVzRE1URkYwNmQKZFBHREF6ZnRobnpWRzZJeVVqdi9ObjNXSzVGckQxZ1RzVzN4MHdRSHF4WkZvMEl3UURBT0JnTlZIUThCQWY4RQpCQU1DQXFRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBZEJnTlZIUTRFRmdRVWoyQWVpQmtrQzlXTDVZSjdaNHhBCkZON1lyU013Q2dZSUtvWkl6ajBFQXdJRFNRQXdSZ0loQU14UHh6WU1LZHk3L055TThhdXM5Y2ZJcUIzL1FXV00KeTdMWDNhOUF2cEszQWlFQTJpV1NuKzJvR0NWRjRQcUZSRU9tejJIUVpyT0FOdTlLKzFZNWQxbGp3cEk9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
 
-# =============================================================================
-# ArgoCD
-# =============================================================================
-argocd:
-  baseUrl: https://argocd-server.argocd.svc.cluster.local
-  username: ${ARGOCD_USERNAME}
-  password: ${ARGOCD_PASSWORD}
-  appLocatorMethods:
-    - type: config
-      instances:
-        - name: production
-          url: https://argocd-server.argocd.svc.cluster.local
-          username: ${ARGOCD_USERNAME}
-          password: ${ARGOCD_PASSWORD}
-
-# =============================================================================
-# Prometheus
-# =============================================================================
-prometheus:
-  proxyPath: /prometheus/api
-
-# =============================================================================
-# Grafana
-# =============================================================================
-grafana:
-  domain: https://grafana.example.com
-  unifiedAlerting: true
-
-# =============================================================================
-# TechDocs
-# =============================================================================
 techdocs:
-  builder: 'local'
+  builder: local
   generator:
-    runIn: 'local'
+    runIn: local
   publisher:
-    type: 'local'
+    type: local
 
-# =============================================================================
-# Search
-# =============================================================================
-search:
-  pg:
-    highlightOptions:
-      useHighlight: true
-      maxWord: 35
-      minWord: 15
+argocd:
+  baseUrl: http://argocd-server.argocd.svc
+  appDetailsMethods:
+    - type: backstage
 
-# =============================================================================
-# Permission (RBAC)
-# =============================================================================
-permission:
-  enabled: true
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+
+organization:
+  name: OM Platform

@@ -9,6 +9,7 @@ import scaffolderPlugin from '@backstage/plugin-scaffolder/alpha';
 import searchPlugin from '@backstage/plugin-search/alpha';
 import userSettingsPlugin from '@backstage/plugin-user-settings/alpha';
 import notificationsPlugin from '@backstage/plugin-notifications/alpha';
+import kubernetesPlugin from '@backstage/plugin-kubernetes/alpha';
 import { navModule } from './modules/nav';
 
 export default createApp({
@@ -19,6 +20,7 @@ export default createApp({
     searchPlugin,
     userSettingsPlugin,
     notificationsPlugin,
+    kubernetesPlugin,
     navModule,
     appPlugin.withOverrides({
       extensions: [

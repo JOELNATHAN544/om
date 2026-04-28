@@ -13,6 +13,7 @@ import SearchIcon from '@material-ui/icons/Search';
 import { SidebarSearchModal } from '@backstage/plugin-search';
 import { UserSettingsSignInAvatar } from '@backstage/plugin-user-settings';
 import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 export const SidebarContent = NavContentBlueprint.make({
   params: {
@@ -23,6 +24,7 @@ export const SidebarContent = NavContentBlueprint.make({
 
       // Skipped items
       nav.take('page:search'); // Using search modal instead
+      nav.take('page:kubernetes'); // Hidden due to alpha context error, use component-level instead
 
       return (
         <Sidebar>
@@ -34,6 +36,11 @@ export const SidebarContent = NavContentBlueprint.make({
           <SidebarGroup label="Menu" icon={<MenuIcon />}>
             {nav.take('page:catalog')}
             {nav.take('page:scaffolder')}
+            <SidebarItem
+              icon={AccountTreeIcon}
+              to="https://argocd.backstage.com"
+              text="ArgoCD"
+            />
             <SidebarDivider />
             <SidebarScrollWrapper>
               {nav.rest({ sortBy: 'title' })}
