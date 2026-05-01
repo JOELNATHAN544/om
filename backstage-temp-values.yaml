@@ -1,0 +1,7 @@
+ingress:
+  enabled: true
+  className: traefik
+  host: portal.backstage.com
+  tls:
+    enabled: true
+    secretName: backstage-tls

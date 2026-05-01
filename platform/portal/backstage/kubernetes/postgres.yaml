@@ -1,0 +1,92 @@
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage-postgresql
+  namespace: backstage
+  labels:
+    app: backstage-postgresql
+spec:
+  type: ClusterIP
+  selector:
+    app: backstage-postgresql
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+
+---
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: backstage-postgresql
+  namespace: backstage
+  labels:
+    app: backstage-postgresql
+spec:
+  serviceName: backstage-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage-postgresql
+  template:
+    metadata:
+      labels:
+        app: backstage-postgresql
+        backstage.io/kubernetes-id: backstage
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-postgresql
+                  key: postgres-password
+            - name: POSTGRES_DB
+              value: "backstage"
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U postgres -d backstage
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U postgres -d backstage
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi

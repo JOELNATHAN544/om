@@ -17,6 +17,27 @@ OM (Operation and Maintenance) is a **central SRE Engineering platform** that en
 - **Request managed services** (databases, caches, queues)
 - **Follow organizational policies** automatically enforced
 
+## 🚀 Getting Started
+
+### Prerequisites
+- **Docker**: [Install Docker](https://docs.docker.com/get-docker/)
+- **K3d**: `curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.6.0 bash`
+- **Kubectl & Helm**: Standard CLI tools
+
+### One-Command Bootstrap
+To stand up the entire platform (K8s, ArgoCD, Backstage, Monitoring) on **macOS** or **Linux**:
+
+```bash
+./scripts/platform-up.sh
+```
+
+### Teardown
+To delete the cluster and all resources:
+
+```bash
+./scripts/platform-down.sh
+```
+
 ### Key Features
 
 | Feature | Description |

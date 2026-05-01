@@ -1,0 +1,27 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.hostname = "om-platform-test"
+
+  # 1. System Resources
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "4096"
+    vb.cpus = 2
+  end
+
+  # 2. Port Forwarding
+  config.vm.network "forwarded_port", guest: 80, host: 9080
+  config.vm.network "forwarded_port", guest: 443, host: 9443
+
+  # 3. Mount the project folder
+  config.vm.synced_folder "..", "/home/vagrant/om"
+
+  # 4. Provisioning (Preparing the test environment)
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "📦 OM Platform Test Lab Ready."
+    echo "👉 Run 'vagrant ssh' to enter the VM."
+    echo "👉 Then run: cd /home/vagrant/om && ./scripts/platform-up.sh"
+  SHELL
+end

@@ -10,12 +10,10 @@ backstage:
   replicas: 1
 
   image:
-    registry: ghcr.io
-    repository: joelnathan544/om-backstage
-    tag: latest
+    registry: k3d-om-registry:5000
+    repository: om-backstage
+    tag: local
     pullPolicy: Always
-    pullSecrets:
-      - ghcr-login
 
   resources:
     requests:
@@ -24,6 +22,9 @@ backstage:
     limits:
       cpu: "1"
       memory: 1Gi
+
+  podLabels:
+    backstage.io/kubernetes-id: backstage
 
   appConfig:
     app:
@@ -39,7 +40,7 @@ backstage:
       database:
         client: pg
         connection:
-          host: 10.43.223.94
+          host: backstage-postgresql
           port: 5432
           user: postgres
           password: ${POSTGRES_PASSWORD}
@@ -142,8 +143,8 @@ backstage:
     - name: POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: backstage-postgresql
-          key: postgres-password
+          name: backstage-secrets
+          key: POSTGRES_PASSWORD
     - name: GITHUB_TOKEN
       valueFrom:
         secretKeyRef:
@@ -174,6 +175,16 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: KUBERNETES_SA_TOKEN
+    - name: KUBERNETES_API_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_API_URL
+    - name: KUBERNETES_CA_DATA
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_CA_DATA
     - name: AWS_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
@@ -210,14 +221,4 @@ ingress:
     enabled: true
 
 postgresql:
-  enabled: true
-  persistence:
-    enabled: false
-  auth:
-    database: backstage
-    username: postgres
-    password: postgres
-  primary:
-    persistence:
-      enabled: false
-      size: 20Gi
+  enabled: false

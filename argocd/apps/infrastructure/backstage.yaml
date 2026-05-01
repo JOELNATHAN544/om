@@ -5,15 +5,39 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "30"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: platform
   sources:
     - repoURL: https://backstage.github.io/charts
       chart: backstage
-      targetRevision: 0.23.0
+      targetRevision: 0.22.5
       helm:
+        skipSchemaValidation: true
+        parameters:
+          - name: backstage.image.registry
+            value: k3d-om-registry:5000
+          - name: backstage.image.repository
+            value: om-backstage
+          - name: backstage.image.tag
+            value: local
+          - name: postgresql.enabled
+            value: "true"
+          - name: postgresql.image.registry
+            value: docker.io
+          - name: postgresql.image.repository
+            value: bitnamilegacy/postgresql
+          - name: postgresql.image.tag
+            value: 17.6.0-debian-12-r4
+          - name: postgresql.auth.database
+            value: backstage
+          - name: postgresql.auth.username
+            value: postgres
+          - name: postgresql.auth.existingSecret
+            value: backstage-postgresql
+          - name: postgresql.auth.secretKeys.userPasswordKey
+            value: user-password
+          - name: postgresql.auth.secretKeys.adminPasswordKey
+            value: admin-password
         valueFiles:
           - $values/helm/values/prod/backstage-values.yaml
     - repoURL: https://github.com/JOELNATHAN544/om.git

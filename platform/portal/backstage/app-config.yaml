@@ -132,15 +132,15 @@ kubernetes:
 # ArgoCD
 # =============================================================================
 argocd:
-  baseUrl: https://argocd.example.com
-  username: ${ARGOCD_USERNAME}
+  baseUrl: ${ARGOCD_BASE_URL:-http://argocd-server.argocd.svc}
+  username: ${ARGOCD_USERNAME:-admin}
   password: ${ARGOCD_PASSWORD}
   appLocatorMethods:
     - type: config
       instances:
         - name: production
-          url: https://argocd.example.com
-          username: ${ARGOCD_USERNAME}
+          url: ${ARGOCD_BASE_URL:-http://argocd-server.argocd.svc}
+          username: ${ARGOCD_USERNAME:-admin}
           password: ${ARGOCD_PASSWORD}
 
 # =============================================================================

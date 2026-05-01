@@ -1,0 +1,56 @@
+# STAGE 1: Build
+FROM node:24-trixie-slim AS build
+WORKDIR /app
+
+# Enable Corepack
+RUN corepack enable && corepack prepare yarn@4.4.1 --activate
+
+# Install build dependencies once
+RUN apt-get update && apt-get install -y python3 g++ build-essential
+
+# Copy Yarn configuration and lockfile
+COPY .yarn ./.yarn
+COPY .yarnrc.yml package.json yarn.lock ./
+COPY packages/app/package.json ./packages/app/package.json
+COPY packages/backend/package.json ./packages/backend/package.json
+
+# Install dependencies (fast, immutable)
+RUN yarn install --immutable
+
+# Copy the source code
+COPY . .
+
+# Build the monorepo once (skipping stand-alone tsc to save 20+ mins)
+# backstage-cli handles necessary transpilation
+RUN yarn workspace app build
+RUN yarn workspace backend build
+
+# STAGE 2: Runtime
+FROM node:24-trixie-slim
+WORKDIR /app
+
+# Install runtime dependencies for isolate-vm and TechDocs
+RUN apt-get update && apt-get install -y python3 python3-pip g++ build-essential libsqlite3-dev
+RUN pip3 install mkdocs-techdocs-core==1.* --break-system-packages
+
+# Copy only the necessary build artifacts
+COPY --from=build /app/packages/backend/dist/skeleton.tar.gz /app/.yarnrc.yml /app/package.json /app/yarn.lock ./
+COPY --from=build /app/.yarn ./.yarn
+RUN tar xzf skeleton.tar.gz && rm skeleton.tar.gz
+
+# Install production dependencies only
+RUN corepack enable && corepack prepare yarn@4.4.1 --activate
+RUN yarn workspaces focus --all --production
+
+# Copy the bundled backend and frontend assets
+COPY --from=build /app/packages/backend/dist/bundle.tar.gz /app/app-config*.yaml ./
+RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
+
+# Fix permissions
+RUN chown -R node:node /app
+USER node
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS="--no-node-snapshot"
+
+CMD ["node", "packages/backend", "--config", "app-config.yaml", "--config", "app-config.production.yaml"]

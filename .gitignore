@@ -1,48 +1,64 @@
-# Local .terraform directories
-.terraform/
+# Secrets and sensitive configuration
+configs/secrets-templates/*.env
+!configs/secrets-templates/*.env.example
+backstage-secrets.env
 
-# .tfstate files
+# Backstage
+platform/portal/backstage/dist
+platform/portal/backstage/dist-types
+platform/portal/backstage/.cache
+platform/portal/backstage/node_modules
+platform/portal/backstage/packages/*/dist
+platform/portal/backstage/packages/*/node_modules
+platform/portal/backstage/plugins/*/dist
+platform/portal/backstage/plugins/*/node_modules
+platform/portal/backstage/*.log
+platform/portal/backstage/.env
+platform/portal/backstage/.env.local
+
+# Vagrant
+Vagrant/.vagrant/
+*.box
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Local TLS artifacts
+tls.crt
+tls.key
+
+# Downloaded CLIs
+kubectl
+
+# Terraform
 *.tfstate
-*.tfstate.*
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
 
-# Crash log files
-crash.log
-crash.*.log
-
-# Exclude all .tfvars files, which are likely to contain sensitive data, such as
-# password, private keys, and other secrets. These should not be part of version 
-# control as they are data points which are potentially sensitive and subject 
-# to change depending on the environment.
-*.tfvars
-*.tfvars.json
-
-# Ignore override files as they are usually used to override resources locally and so
-# are not checked in
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Ignore transient lock info files created by terraform apply
-.terraform.tfstate.lock.info
-
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-
-## Ignore prompts directory which may contain sensitive data or be used for local testing
-prompts/
-./pompts/
-
-# IDE files
-.idea/
+# IDE
 .vscode/
+.idea/
 *.swp
 *.swo
-TODO.md
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+dist/
+build/
+out/
