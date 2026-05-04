@@ -18,7 +18,7 @@ This portal is built on [Backstage](https://backstage.io) and provides a unified
 | Resource | URL |
 |----------|-----|
 | Live Portal | https://portal.backstage.com |
-| GitHub Organisation | https://github.com/JOELNATHAN544 |
+| GitHub Organisation | https://github.com/your-org |
 
 ## Getting Started
 

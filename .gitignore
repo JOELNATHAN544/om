@@ -16,10 +16,6 @@ platform/portal/backstage/*.log
 platform/portal/backstage/.env
 platform/portal/backstage/.env.local
 
-# Vagrant
-Vagrant/.vagrant/
-*.box
-
 # Kubernetes
 *.kubeconfig
 kubeconfig

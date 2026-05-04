@@ -28,7 +28,19 @@ OM (Operation and Maintenance) is a **central SRE Engineering platform** that en
 To stand up the entire platform (K8s, ArgoCD, Backstage, Monitoring) on **macOS** or **Linux**:
 
 ```bash
-./scripts/platform-up.sh
+./scripts/platform-up-v2.sh
+```
+
+To build and push the Backstage image as part of the bootstrap (slower):
+
+```bash
+./scripts/platform-up-v2.sh --build-backstage-image
+```
+
+If you use the default local domains (`portal.backstage.com`, `argocd.backstage.com`), refresh your `/etc/hosts` mapping after reboot/network changes:
+
+```bash
+sudo ./scripts/update-backstage-hosts.sh --apply
 ```
 
 ### Teardown

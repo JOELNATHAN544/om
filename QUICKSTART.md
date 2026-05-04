@@ -35,14 +35,23 @@ nano configs/secrets-templates/backstage-secrets.env
 ./scripts/platform-up-v2.sh
 ```
 
+If you need the script to build and push the Backstage image:
+
+```bash
+./scripts/platform-up-v2.sh --build-backstage-image
+```
+
 Wait 10-15 minutes for the deployment to complete.
 
 ### 3. Configure DNS
 
 Add to `/etc/hosts`:
 ```bash
-127.0.0.1  portal.backstage.com
-127.0.0.1  argocd.backstage.com
+# Print the correct Traefik LoadBalancer IP mapping
+./scripts/update-backstage-hosts.sh --print
+
+# Apply it to /etc/hosts
+sudo ./scripts/update-backstage-hosts.sh --apply
 ```
 
 ### 4. Access
@@ -73,7 +82,15 @@ kubectl logs -n backstage -l app.kubernetes.io/name=backstage -f
 → Check logs: `kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100`
 
 ### Cannot access portal
-→ Verify `/etc/hosts` entry exists: `cat /etc/hosts | grep backstage`
+→ Verify `/etc/hosts` entry exists and matches Traefik:
+
+```bash
+kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
+getent hosts portal.backstage.com
+getent hosts argocd.backstage.com
+```
+
+→ Refresh it after reboot: `sudo ./scripts/update-backstage-hosts.sh --apply`
 
 ### OAuth error
 → Verify redirect URI in Google Console includes: `https://portal.backstage.com/api/auth/google/handler/frame`

@@ -1,0 +1,11 @@
+[Unit]
+Description=OM Backstage hosts updater
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sudo /bin/bash -lc 'cd /home/nathan-ws/Projects/om && ./scripts/update-backstage-hosts.sh --apply --restart-coredns --restart-backstage'
+
+[Install]
+WantedBy=multi-user.target

@@ -3,10 +3,10 @@
 
 backstage:
   image:
-    registry: ghcr.io
-    repository: joelnathan544/om-backstage
-    tag: latest
-    pullPolicy: IfNotPresent
+    registry: k3d-om-registry:5000
+    repository: om-backstage
+    tag: local
+    pullPolicy: Always
 
   appConfig:
     app:

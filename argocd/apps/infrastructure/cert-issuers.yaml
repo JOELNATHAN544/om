@@ -15,7 +15,7 @@ spec:
   project: platform
 
   source:
-    repoURL: https://github.com/JOELNATHAN544/om.git
+    repoURL: __OM_GIT_REPO_URL__
     targetRevision: main
     path: security/cert-manager
 

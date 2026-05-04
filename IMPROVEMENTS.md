@@ -52,7 +52,7 @@ This document summarizes all improvements made to address the issues identified 
 
 ### 2. ✅ Hardcoded Secrets Removed
 
-**Problem:** GitHub organization `JOELNATHAN544` was hardcoded
+**Problem:** GitHub organization and repository were hardcoded
 
 **Solution:**
 - `GITHUB_ORG` and `GITHUB_REPO` now configurable via environment variables
@@ -228,7 +228,7 @@ helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQ
 | Old (Hardcoded in Script) | New (In Config File) |
 |---------------------------|----------------------|
 | `GITHUB_TOKEN="ghp_..."` | `GITHUB_TOKEN=ghp_...` |
-| `GITHUB_ORG="JOELNATHAN544"` | `GITHUB_ORG=your-org` |
+| `GITHUB_ORG="<org>"` | `GITHUB_ORG=your-org` |
 | `GOOGLE_CLIENT_ID="..."` | `GOOGLE_CLIENT_ID=...` |
 | `AWS_ACCESS_KEY_ID="..."` | `AWS_ACCESS_KEY_ID=...` |
 

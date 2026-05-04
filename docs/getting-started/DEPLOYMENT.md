@@ -82,12 +82,18 @@ See [Secrets Configuration Guide](../../configs/secrets-templates/README.md) for
 ./scripts/platform-up-v2.sh
 ```
 
+To build and push the Backstage image as part of the run (slower):
+
+```bash
+./scripts/platform-up-v2.sh --build-backstage-image
+```
+
 The script will:
 1. ✅ Validate your configuration
 2. ✅ Install required dependencies
 3. ✅ Create a local Kubernetes cluster (k3d)
 4. ✅ Install ArgoCD
-5. ✅ Build the Backstage Docker image
+5. ✅ Build the Backstage Docker image (optional via `--build-backstage-image`)
 6. ✅ Deploy PostgreSQL
 7. ✅ Deploy Backstage
 8. ✅ Configure ingress and TLS
@@ -102,9 +108,11 @@ Add these entries to your `/etc/hosts` file:
 # On macOS/Linux:
 sudo nano /etc/hosts
 
-# Add these lines:
-127.0.0.1  portal.backstage.com
-127.0.0.1  argocd.backstage.com
+# Add the current Traefik LoadBalancer IP mapping (k3d can change this after reboot):
+./scripts/update-backstage-hosts.sh --print
+
+# Apply it:
+sudo ./scripts/update-backstage-hosts.sh --apply
 ```
 
 On Windows, edit `C:\Windows\System32\drivers\etc\hosts` as Administrator.
@@ -113,7 +121,7 @@ On Windows, edit `C:\Windows\System32\drivers\etc\hosts` as Administrator.
 
 Open your browser and navigate to:
 - **Backstage Portal**: https://portal.backstage.com
-- **ArgoCD**: http://argocd.backstage.com
+- **ArgoCD**: https://argocd.backstage.com
 
 **Note:** You'll see a certificate warning because we're using self-signed certificates. Click "Advanced" → "Proceed" to continue.
 
@@ -208,7 +216,32 @@ kubectl describe ingress backstage -n backstage
 
 **Verify /etc/hosts:**
 ```bash
-cat /etc/hosts | grep backstage
+kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
+getent hosts portal.backstage.com
+getent hosts argocd.backstage.com
+
+# Refresh after reboot/network change:
+sudo ./scripts/update-backstage-hosts.sh --apply
+```
+
+### Optional: auto-refresh /etc/hosts on boot
+
+If you reboot often or change networks, you can run the helper automatically at boot.
+
+Example `systemd` unit (adjust the repo path to match your machine):
+
+```ini
+[Unit]
+Description=OM Backstage hosts updater
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/sudo /bin/bash -lc 'cd /path/to/om && ./scripts/update-backstage-hosts.sh --apply --restart-coredns --restart-backstage'
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 **Check if port 80/443 are available:**

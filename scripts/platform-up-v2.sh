@@ -19,11 +19,16 @@ DEFAULT_CONFIG="${PROJECT_ROOT}/configs/secrets-templates/backstage-secrets.env"
 
 # --- Parse Arguments ---------------------------------------------------------
 CONFIG_FILE="${DEFAULT_CONFIG}"
+BUILD_BACKSTAGE_IMAGE=false
 while [[ $# -gt 0 ]]; do
   case $1 in
     --config)
       CONFIG_FILE="$2"
       shift 2
+      ;;
+    --build-backstage-image)
+      BUILD_BACKSTAGE_IMAGE=true
+      shift
       ;;
     --help)
       echo "Usage: $0 [--config path/to/secrets.env]"
@@ -31,6 +36,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --config FILE    Path to secrets configuration file"
       echo "                   Default: configs/secrets-templates/backstage-secrets.env"
+      echo "  --build-backstage-image  Build and push the Backstage image to the local registry"
       echo ""
       echo "Setup:"
       echo "  1. Copy configs/secrets-templates/backstage-secrets.env.example"
@@ -108,6 +114,8 @@ ARGOCD_PASSWORD="${ARGOCD_PASSWORD:-}"
 ARGOCD_DOMAIN="${ARGOCD_DOMAIN:-argocd.backstage.com}"
 REDIS_HOST="${REDIS_HOST:-backstage-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+
+OM_GIT_REPO_URL="${OM_GIT_REPO_URL:-https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git}"
 
 echo -e "${GREEN}✅ Configuration validated${NC}"
 echo -e "   Organization: ${GITHUB_ORG}"
@@ -361,29 +369,27 @@ echo -e "${GREEN}✅ Secrets injected.${NC}"
 # =============================================================================
 # 6. Build Backstage Docker Image
 # =============================================================================
-# NOTE: Build the image manually first, then run this script
-# Run in VM: docker build -t localhost:5000/om-backstage:local -f platform/portal/backstage/Dockerfile.multistage platform/portal/backstage
-# Then: docker push localhost:5000/om-backstage:local
-echo -e "${BLUE}🏗️  Checking for Backstage image...${NC}"
-if ${DOCKER_CMD} images --format '{{.Repository}}:{{.Tag}}' | grep -q "localhost:5000/om-backstage:local"; then
-  echo -e "${GREEN}✅ Backstage image found${NC}"
+echo -e "${BLUE}🏗️  Backstage image...${NC}"
+if [[ "${BUILD_BACKSTAGE_IMAGE}" == "true" ]]; then
+  echo -e "${YELLOW}⏳ Building Backstage image (this can take a while)...${NC}"
+  ${DOCKER_CMD} build \
+    -t localhost:5000/om-backstage:local \
+    -f "${BACKSTAGE_DIR}/Dockerfile.multistage" \
+    "${BACKSTAGE_DIR}"
+  echo -e "${BLUE}📦 Pushing image to local registry...${NC}"
+  ${DOCKER_CMD} push localhost:5000/om-backstage:local
+  echo -e "${GREEN}✅ Image built + pushed.${NC}"
 else
-  echo -e "${RED}❌ Backstage image not found!${NC}"
-  echo -e "${YELLOW}Build it first with:${NC}"
-  echo -e "  docker build -t localhost:5000/om-backstage:local -f platform/portal/backstage/Dockerfile.multistage platform/portal/backstage"
-  echo -e "  docker push localhost:5000/om-backstage:local"
-  exit 1
+  echo -e "${BLUE}🔎 Checking for Backstage image in local registry cache...${NC}"
+  if ${DOCKER_CMD} images --format '{{.Repository}}:{{.Tag}}' | grep -q "localhost:5000/om-backstage:local"; then
+    echo -e "${GREEN}✅ Backstage image found${NC}"
+  else
+    echo -e "${RED}❌ Backstage image not found!${NC}"
+    echo -e "${YELLOW}Build it with:${NC}"
+    echo -e "  $0 --build-backstage-image"
+    exit 1
+  fi
 fi
-
-# Uncomment below to build automatically (takes 30-60 minutes)
-# echo -e "${BLUE}🏗️  Building Backstage image (this will take 30-60 minutes)...${NC}"
-# ${DOCKER_CMD} build \
-#   -t localhost:5000/om-backstage:local \
-#   -f "${BACKSTAGE_DIR}/Dockerfile.multistage" \
-#   "${BACKSTAGE_DIR}"
-# echo -e "${BLUE}📦 Pushing image to local registry...${NC}"
-# ${DOCKER_CMD} push localhost:5000/om-backstage:local
-# echo -e "${GREEN}✅ Image pushed.${NC}"
 
 # =============================================================================
 # 7. Generate TLS Certificate
@@ -436,6 +442,26 @@ echo -e "${BLUE}🎭 Deploying Backstage portal...${NC}"
 
 # Ensure PostgreSQL pod doesn't keep retrying an old/non-existent image.
 DESIRED_PG_IMAGE="docker.io/bitnamilegacy/postgresql:17.6.0-debian-12-r4"
+
+# Pre-pull and import the PostgreSQL image into k3d to avoid flaky in-node pulls/DNS.
+if $K3D_CMD cluster list 2>/dev/null | awk '{print $1}' | grep -qx "om-cluster"; then
+  echo -e "${BLUE}📦 Ensuring PostgreSQL image is available in k3d...${NC}"
+  ${DOCKER_CMD} pull "${DESIRED_PG_IMAGE}" >/dev/null
+  $K3D_CMD image import -c om-cluster "${DESIRED_PG_IMAGE}" >/dev/null 2>&1 || true
+fi
+
+# If a previous run/ArgoCD/values drift left PostgreSQL pointing at a non-existent tag,
+# force the StatefulSet template to use the desired image so Helm --wait can complete.
+if kubectl get statefulset -n backstage backstage-postgresql &>/dev/null; then
+  CURRENT_STS_PG_IMAGE=$(kubectl get statefulset -n backstage backstage-postgresql -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+  if [[ -n "${CURRENT_STS_PG_IMAGE}" && "${CURRENT_STS_PG_IMAGE}" != "${DESIRED_PG_IMAGE}" ]]; then
+    echo -e "${YELLOW}🩹 Fixing PostgreSQL StatefulSet image '${CURRENT_STS_PG_IMAGE}' -> '${DESIRED_PG_IMAGE}'...${NC}"
+    kubectl -n backstage set image statefulset/backstage-postgresql postgresql="${DESIRED_PG_IMAGE}" || true
+    kubectl -n backstage delete pod backstage-postgresql-0 --ignore-not-found=true || true
+    kubectl -n backstage rollout status sts/backstage-postgresql --timeout=10m || true
+  fi
+fi
+
 if kubectl get pod -n backstage backstage-postgresql-0 &>/dev/null; then
   CURRENT_PG_IMAGE=$(kubectl get pod -n backstage backstage-postgresql-0 -o jsonpath='{.spec.containers[0].image}' 2>/dev/null || true)
   if [[ -n "${CURRENT_PG_IMAGE}" && "${CURRENT_PG_IMAGE}" != "${DESIRED_PG_IMAGE}" ]]; then
@@ -477,6 +503,18 @@ backstage:
           user: postgres
           password: \${POSTGRES_PASSWORD}
           database: backstage
+
+    kubernetes:
+      serviceLocatorMethod:
+        type: multiTenant
+      clusterLocatorMethods:
+        - type: config
+          clusters:
+            - name: local-cluster
+              url: https://kubernetes.default.svc
+              authProvider: serviceAccount
+              serviceAccountToken: \${KUBERNETES_SA_TOKEN}
+              skipTLSVerify: true
     
     integrations:
       github:
@@ -608,8 +646,24 @@ EOF
 # =============================================================================
 # 10. Register in ArgoCD
 # =============================================================================
-kubectl apply -f "${PROJECT_ROOT}/argocd/bootstrap/projects.yaml" 2>/dev/null || true
-kubectl apply -f "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" 2>/dev/null || true
+OM_GIT_REPO_SSH="${OM_GIT_REPO_SSH:-git@github.com:${GITHUB_ORG}/${GITHUB_REPO}.git}"
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REPO_SSH__|${OM_GIT_REPO_SSH}|g" "${PROJECT_ROOT}/argocd/bootstrap/projects.yaml" | kubectl apply -f - 2>/dev/null || true
+sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" | kubectl apply -f - 2>/dev/null || true
+
+# Apply remaining ArgoCD bootstrap manifests that depend on the repo URL.
+sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/bootstrap/app-of-apps.yaml" | kubectl apply -f - 2>/dev/null || true
+sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/applicationsets/team-apps.yaml" | kubectl apply -f - 2>/dev/null || true
+sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/cert-issuers.yaml" | kubectl apply -f - 2>/dev/null || true
+sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/bootstrap/argocd-cm.yaml" | kubectl apply -f - 2>/dev/null || true
+
+# Ensure Backstage uses the pre-created service account + Kubernetes plugin works with k3d's self-signed CA.
+kubectl -n argocd patch application backstage --type='json' -p='[
+  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"serviceAccount.create","value":"false"}},
+  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"serviceAccount.name","value":"backstage"}},
+  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"backstage.appConfig.kubernetes.clusterLocatorMethods[0].clusters[0].skipTLSVerify","value":"true"}}
+]' 2>/dev/null || true
+
+kubectl -n argocd annotate application backstage argocd.argoproj.io/refresh=hard --overwrite 2>/dev/null || true
 
 # =============================================================================
 # Done!
@@ -619,17 +673,25 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║  ✨  OM Platform is LIVE!                        ║${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║  Portal:  https://${BACKSTAGE_DOMAIN}${NC}"
-echo -e "${GREEN}║  ArgoCD:  http://${ARGOCD_DOMAIN}${NC}"
+echo -e "${GREEN}║  ArgoCD:  https://${ARGOCD_DOMAIN}${NC}"
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${YELLOW}║  Add these to /etc/hosts on your machine:        ║${NC}"
-echo -e "${YELLOW}║    127.0.0.1  ${BACKSTAGE_DOMAIN}${NC}"
-echo -e "${YELLOW}║    127.0.0.1  ${ARGOCD_DOMAIN}${NC}"
+TRAEFIK_IP=$(kubectl -n kube-system get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+if [[ -z "${TRAEFIK_IP}" ]]; then
+  echo -e "${YELLOW}║    <TRAEFIK_LB_IP>  ${BACKSTAGE_DOMAIN}${NC}"
+  echo -e "${YELLOW}║    <TRAEFIK_LB_IP>  ${ARGOCD_DOMAIN}${NC}"
+else
+  echo -e "${YELLOW}║    ${TRAEFIK_IP}  ${BACKSTAGE_DOMAIN}${NC}"
+  echo -e "${YELLOW}║    ${TRAEFIK_IP}  ${ARGOCD_DOMAIN}${NC}"
+fi
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║  ArgoCD admin password: ${YELLOW}${ARGOCD_PASS}${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}📝 Next steps:${NC}"
 echo -e "   1. Add the /etc/hosts entries above"
+echo -e "      (After reboot, re-run the helper to refresh the Traefik IP)"
+echo -e "      sudo ${PROJECT_ROOT}/scripts/update-backstage-hosts.sh --apply"
 echo -e "   2. Access Backstage at https://${BACKSTAGE_DOMAIN}"
 echo -e "   3. Accept the self-signed certificate warning"
 echo -e "   4. Sign in with Google OAuth"

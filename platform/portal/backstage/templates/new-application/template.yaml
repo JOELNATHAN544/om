@@ -159,6 +159,7 @@ spec:
     - title: Repository
       required:
         - repoUrl
+        - platformRepoUrl
       properties:
         repoUrl:
           title: Repository Location
@@ -167,8 +168,12 @@ spec:
           ui:options:
             allowedHosts:
               - github.com
-            allowedOwners:
-              - JOELNATHAN544
+
+        platformRepoUrl:
+          title: Platform Repo (for Deployment PR)
+          type: string
+          description: The repository that will receive the deployment PR
+          default: github.com?owner=your-org&repo=om
 
   # ==========================================================================
   # Execution Steps
@@ -224,7 +229,7 @@ spec:
       name: Create Deployment Configuration
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=JOELNATHAN544&repo=om
+        repoUrl: ${{ parameters.platformRepoUrl }}
         branchName: onboard-${{ parameters.name }}
         title: 'feat: onboard ${{ parameters.name }} application'
         description: |

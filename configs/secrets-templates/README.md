@@ -22,6 +22,11 @@ This directory contains templates for managing sensitive configuration for the O
    ./scripts/platform-up-v2.sh
    ```
 
+   If you need the script to build and push the Backstage image:
+   ```bash
+   ./scripts/platform-up-v2.sh --build-backstage-image
+   ```
+
 ## Required Secrets
 
 ### GitHub Integration

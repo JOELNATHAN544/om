@@ -16,7 +16,7 @@ spec:
   generators:
     # Git Generator - Discover applications from directory structure
     - git:
-        repoURL: https://github.com/JOELNATHAN544/om.git
+        repoURL: __OM_GIT_REPO_URL__
         revision: main
         directories:
           # Each team has a directory: apps/<team>/<app>/
@@ -37,7 +37,7 @@ spec:
       project: 'team-{{path[1]}}'
 
       source:
-        repoURL: https://github.com/JOELNATHAN544/om.git
+        repoURL: __OM_GIT_REPO_URL__
         targetRevision: main
         path: '{{path}}'
         helm:
@@ -111,7 +111,7 @@ spec:
       project: '{{project}}'
 
       source:
-        repoURL: https://github.com/JOELNATHAN544/om.git
+        repoURL: __OM_GIT_REPO_URL__
         targetRevision: main
         path: 'apps/{{team}}'
         helm:

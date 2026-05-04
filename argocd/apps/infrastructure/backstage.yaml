@@ -40,7 +40,7 @@ spec:
             value: admin-password
         valueFiles:
           - $values/helm/values/prod/backstage-values.yaml
-    - repoURL: https://github.com/JOELNATHAN544/om.git
+    - repoURL: __OM_GIT_REPO_URL__
       targetRevision: main
       ref: values
   destination:

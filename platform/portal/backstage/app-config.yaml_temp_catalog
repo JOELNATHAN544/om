@@ -11,7 +11,7 @@ catalog:
   providers:
     github:
       om-platform:
-        organization: 'JOELNATHAN544'
+        organization: ${GITHUB_ORG}
         catalogPath: '/catalog-info.yaml'
         filters:
           repository: '.*'
@@ -22,7 +22,7 @@ catalog:
   locations:
     # Platform catalog
     - type: url
-      target: https://github.com/JOELNATHAN544/om/blob/main/catalog/all.yaml
+      target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/catalog/all.yaml
       rules:
         - allow: [Component, System, API, Resource, Template, Group]
 
