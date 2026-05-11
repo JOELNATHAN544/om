@@ -37,7 +37,7 @@ This document summarizes all improvements made to address the issues identified 
 
 ### 2. ✅ Hardcoded Secrets Removed
 
-**Problem:** Secrets were hardcoded in `scripts/platform-up.sh`
+**Problem:** Secrets were hardcoded in the previous bootstrap script
 
 **Solution:**
 - Created `configs/secrets-templates/backstage-secrets.env.example` template
@@ -203,7 +203,7 @@ platform/portal/backstage/app-config.yaml          # Added default values for Ar
 helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQL
 ```
 
-## 🚀 Migration Guide
+## Migration Guide
 
 ### From Old Script to New Script
 
@@ -213,8 +213,8 @@ helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQ
       configs/secrets-templates/backstage-secrets.env
    ```
 
-2. **Copy your values from old script:**
-   - Open `scripts/platform-up.sh`
+2. **Copy your values from the previous script:**
+   - Open the previous bootstrap script
    - Find your hardcoded values
    - Copy them to `backstage-secrets.env`
 
@@ -232,53 +232,53 @@ helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQ
 | `GOOGLE_CLIENT_ID="..."` | `GOOGLE_CLIENT_ID=...` |
 | `AWS_ACCESS_KEY_ID="..."` | `AWS_ACCESS_KEY_ID=...` |
 
-## ✨ Benefits
+## Benefits
 
 ### For Development
-- ✅ Easy to test with different organizations
-- ✅ No risk of committing secrets
-- ✅ Clear error messages
-- ✅ Faster debugging
+- Easy to test with different organizations
+- No risk of committing secrets
+- Clear error messages
+- Faster debugging
 
 ### For Production
-- ✅ Proper secrets management
-- ✅ Environment-specific configuration
-- ✅ Audit trail (who changed what)
-- ✅ Integration with secrets managers
+- Proper secrets management
+- Environment-specific configuration
+- Audit trail (who changed what)
+- Integration with secrets managers
 
 ### For Team
-- ✅ Clear documentation
-- ✅ Self-service setup
-- ✅ Consistent deployment process
-- ✅ Easy onboarding
+- Clear documentation
+- Self-service setup
+- Consistent deployment process
+- Easy onboarding
 
-## 🎓 Best Practices Implemented
+## Best Practices Implemented
 
 1. **Secrets Management**
-   - ✅ Never commit secrets to Git
-   - ✅ Use environment-specific config files
-   - ✅ Template-based approach
-   - ✅ Clear documentation
+   - Never commit secrets to Git
+   - Use environment-specific config files
+   - Template-based approach
+   - Clear documentation
 
 2. **Configuration Management**
-   - ✅ Externalized configuration
-   - ✅ Validation before deployment
-   - ✅ Sensible defaults
-   - ✅ Environment separation
+   - Externalized configuration
+   - Validation before deployment
+   - Sensible defaults
+   - Environment separation
 
 3. **Error Handling**
-   - ✅ Fail fast with clear messages
-   - ✅ Validation before execution
-   - ✅ Helpful troubleshooting guides
-   - ✅ Colored output for visibility
+   - Fail fast with clear messages
+   - Validation before execution
+   - Helpful troubleshooting guides
+   - Colored output for visibility
 
 4. **Documentation**
-   - ✅ Quick start for beginners
-   - ✅ Detailed guide for advanced users
-   - ✅ Troubleshooting section
-   - ✅ Security best practices
+   - Quick start for beginners
+   - Detailed guide for advanced users
+   - Troubleshooting section
+   - Security best practices
 
-## 🔮 Future Improvements
+## Future Improvements
 
 ### Short Term
 - [ ] Add support for Vault/AWS Secrets Manager
@@ -298,17 +298,17 @@ helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQ
 - [ ] Advanced RBAC configuration
 - [ ] Custom plugin development
 
-## 📊 Completion Status
+## Completion Status
 
 | Category | Status | Notes |
 |----------|--------|-------|
-| Secrets Management | ✅ 100% | Fully externalized |
-| Configuration | ✅ 100% | Flexible and validated |
-| Documentation | ✅ 100% | Comprehensive guides |
-| Error Handling | ✅ 100% | Clear messages |
-| Production Ready | ⚠️ 70% | Needs real cluster, DNS, certs |
+| Secrets Management | 100% | Fully externalized |
+| Configuration | 100% | Flexible and validated |
+| Documentation | 100% | Comprehensive guides |
+| Error Handling | 100% | Clear messages |
+| Production Ready | 70% | Needs real cluster, DNS, certs |
 
-## 🎯 Next Steps
+## Next Steps
 
 1. **Test the new script** with your configuration
 2. **Verify all features** work as expected
@@ -316,14 +316,12 @@ helm/values/prod/backstage-values.yaml             # Disabled embedded PostgreSQ
 4. **Train team** on new process
 5. **Plan production deployment** with real infrastructure
 
-## 📝 Notes
+## Notes
 
-- Old script (`platform-up.sh`) is preserved for reference
 - New script (`platform-up-v2.sh`) is the recommended approach
-- Both scripts can coexist during transition period
 - Configuration file approach is more maintainable long-term
 
-## 🤝 Contributing
+## Contributing
 
 When adding new features:
 1. Add configuration to `backstage-secrets.env.example`

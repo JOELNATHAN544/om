@@ -17,28 +17,28 @@ spec:
     # Git Generator - Discover applications from directory structure
     - git:
         repoURL: __OM_GIT_REPO_URL__
-        revision: main
+        revision: __OM_GIT_REVISION__
         directories:
-          # Each team has a directory: apps/<team>/<app>/
-          - path: apps/*/*
+          # Each team has a directory: argocd/apps/<team>/<app>/
+          - path: argocd/apps/*/*
 
   template:
     metadata:
       # Application name: team-appname
-      name: '{{path[1]}}-{{path[2]}}'
+      name: '{{path[2]}}-{{path[3]}}'
       namespace: argocd
       labels:
         app.kubernetes.io/part-of: om-platform
-        team: '{{path[1]}}'
-        app: '{{path[2]}}'
+        team: '{{path[2]}}'
+        app: '{{path[3]}}'
       finalizers:
         - resources-finalizer.argocd.argoproj.io
     spec:
-      project: 'team-{{path[1]}}'
+      project: 'team-{{path[2]}}'
 
       source:
         repoURL: __OM_GIT_REPO_URL__
-        targetRevision: main
+        targetRevision: __OM_GIT_REVISION__
         path: '{{path}}'
         helm:
           valueFiles:
@@ -46,7 +46,7 @@ spec:
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{path[1]}}'
+        namespace: '{{path[2]}}'
 
       syncPolicy:
         automated:
@@ -82,9 +82,7 @@ spec:
           # List of teams
           - list:
               elements:
-                - team: backend
-                - team: frontend
-                - team: data
+                []
 
           # List of environments
           - list:
@@ -112,8 +110,8 @@ spec:
 
       source:
         repoURL: __OM_GIT_REPO_URL__
-        targetRevision: main
-        path: 'apps/{{team}}'
+        targetRevision: __OM_GIT_REVISION__
+        path: 'argocd/apps/{{team}}'
         helm:
           valueFiles:
             - values.yaml

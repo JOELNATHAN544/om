@@ -46,6 +46,14 @@ RUN yarn workspaces focus --all --production
 COPY --from=build /app/packages/backend/dist/bundle.tar.gz /app/app-config*.yaml ./
 RUN tar xzf bundle.tar.gz && rm bundle.tar.gz
 
+# Backstage backend is executed via `node packages/backend`, which relies on
+# packages/backend/package.json -> main: dist/index.cjs.js.
+# Ensure the runtime image contains that dist output.
+COPY --from=build /app/packages/backend/dist ./packages/backend/dist
+
+# Ensure the built frontend is present for plugin-app-backend to serve
+COPY --from=build /app/packages/app/dist ./packages/app/dist
+
 # Fix permissions
 RUN chown -R node:node /app
 USER node

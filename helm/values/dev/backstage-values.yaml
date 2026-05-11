@@ -67,15 +67,15 @@ backstage:
       # Bootstrap users + templates from this repo (adjust org/repo + branch)
       locations:
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog/users.yaml
           rules:
             - allow: [Group, User]
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog-info.yaml
           rules:
             - allow: [Component, Group, User]
         - type: github-discovery
-          target: https://github.com/${GITHUB_ORG}/*/blob/main/catalog-info.yaml
+          target: https://github.com/${GITHUB_ORG}/*/blob/${OM_GIT_REVISION}/catalog-info.yaml
 
   extraEnvVars:
     - name: POSTGRES_PASSWORD

@@ -4,6 +4,16 @@ set -euo pipefail
 BACKSTAGE_DOMAIN="${BACKSTAGE_DOMAIN:-portal.backstage.com}"
 ARGOCD_DOMAIN="${ARGOCD_DOMAIN:-argocd.backstage.com}"
 
+# When invoked via sudo, kubectl may use /root/.kube/config which can point to a
+# different cluster/context. Prefer the invoking user's kubeconfig unless
+# KUBECONFIG is explicitly set.
+if [[ "${EUID}" -eq 0 && -z "${KUBECONFIG:-}" && -n "${SUDO_USER:-}" ]]; then
+  SUDO_USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6 || true)
+  if [[ -n "${SUDO_USER_HOME}" && -f "${SUDO_USER_HOME}/.kube/config" ]]; then
+    export KUBECONFIG="${SUDO_USER_HOME}/.kube/config"
+  fi
+fi
+
 MODE="${1:-}"
 RESTART_BACKSTAGE=false
 RESTART_COREDNS=false

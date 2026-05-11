@@ -159,7 +159,6 @@ spec:
     - title: Repository
       required:
         - repoUrl
-        - platformRepoUrl
       properties:
         repoUrl:
           title: Repository Location
@@ -168,12 +167,8 @@ spec:
           ui:options:
             allowedHosts:
               - github.com
-
-        platformRepoUrl:
-          title: Platform Repo (for Deployment PR)
-          type: string
-          description: The repository that will receive the deployment PR
-          default: github.com?owner=your-org&repo=om
+            allowedOwners:
+              - skyengpro
 
   # ==========================================================================
   # Execution Steps
@@ -216,6 +211,7 @@ spec:
       name: Create GitHub Repository
       action: publish:github
       input:
+        allowedHosts: ['github.com']
         description: ${{ parameters.description }}
         repoUrl: ${{ parameters.repoUrl }}
         defaultBranch: main
@@ -229,7 +225,7 @@ spec:
       name: Create Deployment Configuration
       action: publish:github:pull-request
       input:
-        repoUrl: ${{ parameters.platformRepoUrl }}
+        repoUrl: github.com?owner=skyengpro&repo=om
         branchName: onboard-${{ parameters.name }}
         title: 'feat: onboard ${{ parameters.name }} application'
         description: |
@@ -281,6 +277,14 @@ spec:
             service: ${{ parameters.cache }}
             size: small
 
+    # Step 6: Register in catalog
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-github'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
   # ==========================================================================
   # Output
   # ==========================================================================
@@ -291,7 +295,7 @@ spec:
         icon: github
       - title: View in Catalog
         icon: catalog
-        entityRef: component:default/${{ parameters.name }}
+        entityRef: ${{ steps['register'].output.entityRef }}
       - title: Deployment PR
         url: ${{ steps['create-deployment-pr'].output.remoteUrl }}
         icon: github

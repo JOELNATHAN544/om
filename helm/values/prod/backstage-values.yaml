@@ -79,23 +79,25 @@ backstage:
             schedule:
               frequency: { minutes: 30 }
               timeout: { minutes: 3 }
+              initialDelay: { seconds: 30 }
+          # Bootstrap users + templates from this repo (adjust org/repo + branch)
       locations:
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog/users.yaml
           rules:
             - allow: [Group, User]
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog-info.yaml
           rules:
             - allow: [Component, Group, User]
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/new-application/template.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/new-application/template.yaml
           rules: [ { allow: [ Template ] } ]
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/request-service/template.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/request-service/template.yaml
           rules: [ { allow: [ Template ] } ]
         - type: url
-          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
+          target: https://github.com/${GITHUB_ORG}/${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/team-onboarding/template.yaml
           rules: [ { allow: [ Template ] } ]
 
     kubernetes:
@@ -145,6 +147,16 @@ backstage:
         secretKeyRef:
           name: backstage-secrets
           key: POSTGRES_PASSWORD
+    - name: OM_GIT_REVISION
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: OM_GIT_REVISION
+    - name: OM_GIT_REPO_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: OM_GIT_REPO_URL
     - name: GITHUB_TOKEN
       valueFrom:
         secretKeyRef:

@@ -20,7 +20,7 @@ spec:
 
   source:
     repoURL: __OM_GIT_REPO_URL__
-    targetRevision: main
+    targetRevision: __OM_GIT_REVISION__
     path: argocd/apps
 
   destination:
@@ -68,7 +68,7 @@ spec:
 
   source:
     repoURL: __OM_GIT_REPO_URL__
-    targetRevision: main
+    targetRevision: __OM_GIT_REVISION__
     path: argocd/apps/infrastructure
 
   destination:

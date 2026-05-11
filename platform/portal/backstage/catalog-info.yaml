@@ -8,7 +8,6 @@ metadata:
     backstage.io/kubernetes-id: backstage
     backstage.io/kubernetes-namespace: backstage
     argocd/app-name: backstage
-    github.com/project-slug: your-org/om
   links:
     - url: https://portal.backstage.com
       title: Live Portal

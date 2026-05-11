@@ -27,6 +27,8 @@ This directory contains templates for managing sensitive configuration for the O
    ./scripts/platform-up-v2.sh --build-backstage-image
    ```
 
+   Use this on the **first run** (to create the image in the local registry) and whenever you need to **rebuild + push** the image after Backstage code/Dockerfile changes. Otherwise, run `./scripts/platform-up-v2.sh` without the flag for faster deploys.
+
 ## Required Secrets
 
 ### GitHub Integration
@@ -154,17 +156,17 @@ Check that all required variables are set and don't contain placeholder values l
 - Check that the OAuth consent screen is configured
 - Ensure the client ID and secret are correct
 
-## Migration from Old Script
+## Migration
 
-If you were using the old `platform-up.sh` script with hardcoded values:
+ If you were using the previous bootstrap script with hardcoded values:
+ 
+ 1. Create the new config file from the example
+ 2. Copy your values from the previous script to the new config file
+ 3. Use the new script: `./scripts/platform-up-v2.sh`
 
-1. Create the new config file from the example
-2. Copy your values from the old script to the new config file
-3. Use the new script: `./scripts/platform-up-v2.sh`
-
-The new script provides:
-- ✅ No hardcoded secrets
-- ✅ Configuration validation
-- ✅ Better error messages
-- ✅ Support for multiple environments
-- ✅ Easier to maintain and audit
+ The new script provides:
+- No hardcoded secrets
+- Configuration validation
+- Better error messages
+- Support for multiple environments
+- Easier to maintain and audit

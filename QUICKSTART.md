@@ -41,6 +41,8 @@ If you need the script to build and push the Backstage image:
 ./scripts/platform-up-v2.sh --build-backstage-image
 ```
 
+Use this on the **first run** (to create the image in the local registry) and whenever you want to **rebuild + push** the image after Backstage code/Dockerfile changes. Otherwise, run `./scripts/platform-up-v2.sh` without the flag for a faster deploy.
+
 Wait 10-15 minutes for the deployment to complete.
 
 ### 3. Configure DNS

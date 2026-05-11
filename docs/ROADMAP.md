@@ -42,7 +42,7 @@ This document outlines the implementation roadmap for the OM (Operation and Main
 ### Success Criteria
 - [x] Proxmox cluster is running and accessible (Version 9.1.1)
 - [x] Talos k8s cluster is running and accessible (Version 1.33.x)
-- [ ] 70% -> OpenStack cluster is running and accessible (Version 2025.2.x)
+- [x] OpenStack cluster is running and accessible (Version 2025.2.x)
 - [ ] 80% -> Netbird cluster is running and accessible (Version Management-0.67.1, Dashboard-2.36.0)
 - [x] ArgoCD, Grafana, Prometheus, Alertmanager, Loki, Alloy, tempo, mimir, pyroscope, metalLB, Nginx ingress Controller, IAM Operator are deploy and running 
 - [x] All infrastructure is defined with IaC (Ansible, Terraform) 
@@ -75,13 +75,16 @@ This document outlines the implementation roadmap for the OM (Operation and Main
 
 ### Success Criteria
 - [ ] Proxmox operation and maintenance handover to Usher and Onel
+- [ ] proxmox VM templates with ansible
 - [ ] Openstack full functional (Subscription, Create resource like VM, Networks, Manager K8s Service, Container Services, Plugins(vault-plugin-secrets-openstack, self-registration-plugins))
 - [ ] Backstage is running and accessible
 - [ ] ArgoCD is managing all applications
 - [ ] Custom Monitoring dashboards are accessible
 - [ ] TLS certificates are automatically provisioned and renew
 - [ ] External traffic reaches applications
-- [ ] Netbird agent install script is ready 
+- [ ] Netbird agent install script is ready
+- [ ] Deployment of IVISS platform
+- [ ] Deployment of Azamra
 
 ---
 

@@ -16,6 +16,8 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
+set +e
+
 # 1. Delete K3d Cluster
 if k3d cluster list | grep -q "om-cluster"; then
     echo -e "${BLUE}🗑️  Deleting K3d Cluster: om-cluster...${NC}"
@@ -24,7 +26,15 @@ else
     echo -e "${GREEN}✅ No cluster found named om-cluster.${NC}"
 fi
 
-# 2. Cleanup local files if any
+# 2. Delete K3d Registry (if created)
+if k3d registry list 2>/dev/null | grep -q "om-registry"; then
+    echo -e "${BLUE}🗑️  Deleting K3d Registry: om-registry...${NC}"
+    k3d registry delete om-registry
+else
+    echo -e "${GREEN}✅ No registry found named om-registry.${NC}"
+fi
+
+# 3. Cleanup local files if any
 echo -e "${BLUE}🧹 Cleaning up local cache...${NC}"
 rm -rf platform/portal/backstage/dist
 

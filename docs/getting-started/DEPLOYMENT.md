@@ -88,6 +88,8 @@ To build and push the Backstage image as part of the run (slower):
 ./scripts/platform-up-v2.sh --build-backstage-image
 ```
 
+Run with `--build-backstage-image` on the **first deployment** (so the image exists in the local registry) and whenever you need to **rebuild + push** the image after Backstage code/Dockerfile changes. For faster subsequent runs, use `./scripts/platform-up-v2.sh` without the flag.
+
 The script will:
 1. ✅ Validate your configuration
 2. ✅ Install required dependencies

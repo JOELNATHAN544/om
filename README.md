@@ -37,6 +37,8 @@ To build and push the Backstage image as part of the bootstrap (slower):
 ./scripts/platform-up-v2.sh --build-backstage-image
 ```
 
+Run this on the **first deployment** (to ensure the image exists in the local registry), and again whenever you need to **rebuild + push** the Backstage image after changing Backstage code/Dockerfile. For faster runs when the image already exists, use `./scripts/platform-up-v2.sh` without the flag.
+
 If you use the default local domains (`portal.backstage.com`, `argocd.backstage.com`), refresh your `/etc/hosts` mapping after reboot/network changes:
 
 ```bash

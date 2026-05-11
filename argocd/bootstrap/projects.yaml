@@ -16,15 +16,10 @@ spec:
   description: Platform infrastructure and core components
 
   sourceRepos:
-    - __OM_GIT_REPO_URL__
-    - __OM_GIT_REPO_SSH__
     - https://github.com/skyengpro/om.git
     - https://charts.jetstack.io
-    - https://kubernetes.github.io/ingress-nginx
     - https://prometheus-community.github.io/helm-charts
     - https://argoproj.github.io/argo-helm
-    - https://backstage.github.io/charts
-    - https://8gears.container-registry.com/chartrepo/library
 
   destinations:
     - namespace: '*'
@@ -54,7 +49,6 @@ spec:
   description: Template project for team onboarding (copy and customize)
 
   sourceRepos:
-    - __OM_GIT_REPO_URL__
     - https://github.com/skyengpro/om.git
 
   destinations:
@@ -126,7 +120,6 @@ spec:
   description: Development environment applications
 
   sourceRepos:
-    - __OM_GIT_REPO_URL__
     - https://github.com/skyengpro/om.git
     - '*'  # Allow any repo in dev
 
@@ -161,7 +154,6 @@ spec:
   description: Production environment applications (restricted)
 
   sourceRepos:
-    - __OM_GIT_REPO_URL__
     - https://github.com/skyengpro/om.git
 
   destinations:

@@ -20,6 +20,7 @@ DEFAULT_CONFIG="${PROJECT_ROOT}/configs/secrets-templates/backstage-secrets.env"
 # --- Parse Arguments ---------------------------------------------------------
 CONFIG_FILE="${DEFAULT_CONFIG}"
 BUILD_BACKSTAGE_IMAGE=false
+PULL_BACKSTAGE_IMAGE=false
 while [[ $# -gt 0 ]]; do
   case $1 in
     --config)
@@ -30,6 +31,10 @@ while [[ $# -gt 0 ]]; do
       BUILD_BACKSTAGE_IMAGE=true
       shift
       ;;
+    --pull-backstage-image)
+      PULL_BACKSTAGE_IMAGE=true
+      shift
+      ;;
     --help)
       echo "Usage: $0 [--config path/to/secrets.env]"
       echo ""
@@ -37,6 +42,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --config FILE    Path to secrets configuration file"
       echo "                   Default: configs/secrets-templates/backstage-secrets.env"
       echo "  --build-backstage-image  Build and push the Backstage image to the local registry"
+      echo "  --pull-backstage-image   Pull a prebuilt Backstage image and push it to the local registry"
       echo ""
       echo "Setup:"
       echo "  1. Copy configs/secrets-templates/backstage-secrets.env.example"
@@ -105,6 +111,8 @@ BACKSTAGE_BASE_URL="${BACKSTAGE_BASE_URL:-https://${BACKSTAGE_DOMAIN}}"
 K3D_REGISTRY_PORT="${K3D_REGISTRY_PORT:-5000}"
 K3D_HTTP_PORT="${K3D_HTTP_PORT:-80}"
 K3D_HTTPS_PORT="${K3D_HTTPS_PORT:-443}"
+K3D_AGENTS="${K3D_AGENTS:-0}"
+BACKSTAGE_IMAGE_REMOTE="${BACKSTAGE_IMAGE_REMOTE:-docker.io/joelnatahn/my-backstage:fixed}"
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
@@ -114,8 +122,9 @@ ARGOCD_PASSWORD="${ARGOCD_PASSWORD:-}"
 ARGOCD_DOMAIN="${ARGOCD_DOMAIN:-argocd.backstage.com}"
 REDIS_HOST="${REDIS_HOST:-backstage-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
-
 OM_GIT_REPO_URL="${OM_GIT_REPO_URL:-https://github.com/${GITHUB_ORG}/${GITHUB_REPO}.git}"
+OM_GIT_REPO_SSH="${OM_GIT_REPO_SSH:-git@github.com:${GITHUB_ORG}/${GITHUB_REPO}.git}"
+OM_GIT_REVISION="${OM_GIT_REVISION:-main}"
 
 echo -e "${GREEN}✅ Configuration validated${NC}"
 echo -e "   Organization: ${GITHUB_ORG}"
@@ -125,6 +134,17 @@ echo -e "   Base URL: ${BACKSTAGE_BASE_URL}"
 echo -e "   K3d Registry Port: ${K3D_REGISTRY_PORT}"
 echo -e "   K3d HTTP Port: ${K3D_HTTP_PORT}"
 echo -e "   K3d HTTPS Port: ${K3D_HTTPS_PORT}"
+echo -e "   K3d Agents: ${K3D_AGENTS}"
+
+# Some tools (k3d) rely on TMPDIR for temp files. If TMPDIR points to a non-existent
+# directory, cluster creation can fail (e.g. /tmp/om-bootstrap missing).
+if [[ -n "${TMPDIR:-}" && ! -d "${TMPDIR}" ]]; then
+  if mkdir -p "${TMPDIR}" >/dev/null 2>&1; then
+    :
+  else
+    export TMPDIR="/tmp"
+  fi
+fi
 
 # =============================================================================
 # 1. Detect OS
@@ -136,6 +156,105 @@ case "${OS}" in
   *)        echo -e "${RED}❌ Unsupported OS: ${OS}${NC}"; exit 1 ;;
 esac
 echo -e "   OS Detected: ${GREEN}${DISTRO}${NC}"
+
+retry() {
+  local -r _max_attempts="$1"; shift
+  local -r _sleep_seconds="$1"; shift
+  local _attempt=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [[ "${_attempt}" -ge "${_max_attempts}" ]]; then
+      return 1
+    fi
+    sleep "${_sleep_seconds}"
+    _attempt=$((_attempt + 1))
+  done
+}
+
+kubectl_retry() {
+  retry 30 2 kubectl "$@"
+}
+
+wait_for_cluster_networking() {
+  echo -e "${BLUE}🩺 Waiting for cluster networking/Traefik to become Ready...${NC}"
+
+  if ! retry 60 2 kubectl get nodes >/dev/null 2>&1; then
+    echo -e "${RED}❌ Kubernetes API is not responding.${NC}"
+    return 1
+  fi
+
+  if kubectl -n kube-system get ds kube-flannel-ds >/dev/null 2>&1; then
+    kubectl -n kube-system rollout status ds/kube-flannel-ds --timeout=10m >/dev/null 2>&1 || true
+  fi
+
+  if kubectl -n kube-system get deploy traefik >/dev/null 2>&1; then
+    kubectl -n kube-system rollout status deploy/traefik --timeout=10m >/dev/null 2>&1 || true
+  fi
+
+  if ! retry 60 2 bash -c 'kubectl -n kube-system get endpoints traefik -o jsonpath="{.subsets[0].addresses[0].ip}" 2>/dev/null | grep -q .'; then
+    echo -e "${RED}❌ Traefik endpoints are not ready (ingress will return 503).${NC}"
+    echo -e "${YELLOW}If you see flannel errors (subnet.env missing), restart Colima and/or recreate the k3d cluster.${NC}"
+    echo -e "${YELLOW}Debug:${NC}"
+    echo -e "${YELLOW}  kubectl -n kube-system get pods | egrep 'traefik|svclb-traefik|flannel'${NC}"
+    echo -e "${YELLOW}  kubectl -n kube-system describe pod -l app.kubernetes.io/name=traefik | sed -n '1,200p'${NC}"
+    return 1
+  fi
+  echo -e "${GREEN}✅ Cluster networking looks Ready${NC}"
+}
+
+ensure_traefik() {
+  if kubectl -n kube-system get deploy traefik >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo -e "${YELLOW}⚠️  Traefik is not installed in kube-system. Installing via Helm...${NC}"
+  helm repo add traefik https://traefik.github.io/charts --force-update >/dev/null 2>&1 || true
+  helm repo update traefik >/dev/null 2>&1 || true
+  kubectl create namespace kube-system --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1 || true
+
+  helm upgrade --install traefik-crds traefik/traefik-crds \
+    -n kube-system \
+    --wait --timeout 10m \
+    --skip-schema-validation >/dev/null 2>&1 || true
+
+  helm upgrade --install traefik traefik/traefik \
+    -n kube-system \
+    --set providers.kubernetesCRD.enabled=true \
+    --set providers.kubernetesIngress.enabled=true \
+    --set ports.web.port=8000 \
+    --set ports.websecure.port=8443 \
+    --set service.type=LoadBalancer \
+    --set ingressClass.enabled=true \
+    --set ingressClass.isDefaultClass=true \
+    --skip-schema-validation \
+    --wait --timeout 20m
+}
+
+http_smoke_test() {
+  local -r _name="$1"
+  local -r _url="$2"
+  local _code
+  echo -e "${BLUE}🧪 Smoke test: ${_name} (${_url})...${NC}"
+
+  if ! retry 30 2 bash -c "_code=\$(curl -k -sS -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 10 '${_url}' || echo 000); [[ \"\$_code\" != '000' && \"\$_code\" != '503' ]]"; then
+    _code=$(curl -k -sS -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 10 "${_url}" 2>/dev/null || echo 000)
+    echo -e "${RED}❌ Smoke test failed for ${_name} (HTTP ${_code}).${NC}"
+    echo -e "${YELLOW}Diagnostics:${NC}"
+    kubectl -n kube-system get pods | egrep 'traefik|svclb-traefik|flannel|coredns' || true
+    kubectl -n kube-system get svc traefik 2>/dev/null || true
+    kubectl -n kube-system get endpoints traefik 2>/dev/null || true
+    kubectl -n backstage get pods 2>/dev/null || true
+    kubectl -n backstage get ingress 2>/dev/null || true
+    kubectl -n argocd get pods 2>/dev/null || true
+    kubectl -n argocd get ingress 2>/dev/null || true
+    return 1
+  fi
+
+  _code=$(curl -k -sS -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 10 "${_url}" 2>/dev/null || echo 000)
+  echo -e "${GREEN}✅ Smoke test OK for ${_name} (HTTP ${_code})${NC}"
+}
 
 # =============================================================================
 # 2. Install Dependencies
@@ -239,13 +358,17 @@ else
     --api-port 6550 \
     -p "${K3D_HTTP_PORT}:80@loadbalancer" \
     -p "${K3D_HTTPS_PORT}:443@loadbalancer" \
-    --registry-use k3d-om-registry:5000 \
-    --agents 0
+    --registry-use "k3d-om-registry:${K3D_REGISTRY_PORT}" \
+    --agents "${K3D_AGENTS}"
 fi
 
 $K3D_CMD kubeconfig get om-cluster > "${HOME}/.kube/config"
 chmod 600 "${HOME}/.kube/config"
 echo -e "${GREEN}✅ Kubeconfig updated.${NC}"
+
+ensure_traefik
+
+wait_for_cluster_networking
 
 # =============================================================================
 # 4. Install ArgoCD
@@ -254,6 +377,34 @@ echo -e "${BLUE}⚓ Installing ArgoCD...${NC}"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 helm repo add argo https://argoproj.github.io/argo-helm --force-update || true
 helm repo update argo
+
+# Ensure ArgoCD is reachable via Traefik with TLS termination.
+# We create a local self-signed cert for ${ARGOCD_DOMAIN} and store it in the argocd namespace.
+if ! kubectl -n argocd get secret argocd-tls >/dev/null 2>&1; then
+  echo -e "${YELLOW}🛡️  Generating TLS certificate for ${ARGOCD_DOMAIN}...${NC}"
+  _argo_tmpdir="${TMPDIR:-/tmp}"
+  _argo_crt="${_argo_tmpdir%/}/argocd.crt"
+  _argo_key="${_argo_tmpdir%/}/argocd.key"
+  openssl req -x509 -nodes -newkey rsa:2048 \
+    -subj "/CN=${ARGOCD_DOMAIN}/O=OM Platform" \
+    -keyout "${_argo_key}" \
+    -out "${_argo_crt}" \
+    -days 365 >/dev/null 2>&1 || true
+  kubectl -n argocd create secret tls argocd-tls \
+    --cert="${_argo_crt}" \
+    --key="${_argo_key}" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1 || true
+  echo -e "${GREEN}✅ ArgoCD TLS certificate created.${NC}"
+fi
+
+# Avoid Helm server-side apply field ownership conflicts with previously applied ConfigMaps.
+# In a local bootstrap environment it's safe to recreate this ConfigMap on each run.
+kubectl delete configmap argocd-cm -n argocd --ignore-not-found=true >/dev/null 2>&1 || true
+
+# If we previously patched the ArgoCD Ingress (or applied custom routes), Helm's
+# server-side apply may conflict on spec.rules ownership. Recreate it cleanly.
+kubectl delete ingress argocd-server -n argocd --ignore-not-found=true >/dev/null 2>&1 || true
+kubectl delete ingressroute argocd-portforward -n argocd --ignore-not-found=true >/dev/null 2>&1 || true
 
 # If a previous install/upgrade failed (often due to resource pressure), uninstall before retrying.
 if helm status argocd -n argocd >/dev/null 2>&1; then
@@ -268,14 +419,32 @@ fi
 helm upgrade --install argocd argo/argo-cd \
   -n argocd \
   --set configs.params."server\.insecure"=true \
+  --set server.extraArgs[0]=--insecure \
   --set server.ingress.enabled=true \
   --set server.ingress.ingressClassName=traefik \
   --set "server.ingress.hosts={${ARGOCD_DOMAIN}}" \
   --wait --timeout 30m
 
+# Ensure ingress host + TLS secret are correct (chart defaults can drift across upgrades).
+if kubectl -n argocd get ingress argocd-server >/dev/null 2>&1; then
+  kubectl -n argocd patch ingress argocd-server --type='json' -p='[
+    {"op":"replace","path":"/spec/rules/0/host","value":"'"${ARGOCD_DOMAIN}"'"}
+  ]' >/dev/null 2>&1 || true
+  kubectl -n argocd patch ingress argocd-server --type='merge' -p="
+spec:
+  tls:
+    - hosts:
+        - ${ARGOCD_DOMAIN}
+      secretName: argocd-tls
+" >/dev/null 2>&1 || true
+fi
+
+# Wait for ArgoCD server to be Ready (otherwise Traefik returns 503 no available server).
+kubectl -n argocd rollout status deploy/argocd-server --timeout=10m >/dev/null 2>&1 || true
+
 # Fix Host header for VM port-forwarding (browsers may include :<port> in Host).
 kubectl apply -f - <<EOF
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: argocd-host-fix
@@ -286,7 +455,7 @@ spec:
       Host: "${ARGOCD_DOMAIN}"
 EOF
 cat <<'EOF' | sed "s|__ARGOCD_DOMAIN__|${ARGOCD_DOMAIN}|g" | kubectl apply -f -
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: argocd-portforward
@@ -335,6 +504,8 @@ kubectl create secret generic backstage-secrets -n backstage \
   --from-literal=GITHUB_TOKEN="${GITHUB_TOKEN}" \
   --from-literal=GITHUB_ORG="${GITHUB_ORG}" \
   --from-literal=GITHUB_REPO="${GITHUB_REPO}" \
+  --from-literal=OM_GIT_REVISION="${OM_GIT_REVISION}" \
+  --from-literal=OM_GIT_REPO_URL="${OM_GIT_REPO_URL}" \
   --from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
   --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
   --from-literal=KUBERNETES_SA_TOKEN="${SA_TOKEN}" \
@@ -370,7 +541,19 @@ echo -e "${GREEN}✅ Secrets injected.${NC}"
 # 6. Build Backstage Docker Image
 # =============================================================================
 echo -e "${BLUE}🏗️  Backstage image...${NC}"
-if [[ "${BUILD_BACKSTAGE_IMAGE}" == "true" ]]; then
+if [[ "${BUILD_BACKSTAGE_IMAGE}" == "true" && "${PULL_BACKSTAGE_IMAGE}" == "true" ]]; then
+  echo -e "${RED}❌ Please choose only one: --build-backstage-image OR --pull-backstage-image${NC}"
+  exit 1
+fi
+
+if [[ "${PULL_BACKSTAGE_IMAGE}" == "true" ]]; then
+  echo -e "${YELLOW}⏳ Pulling Backstage image: ${BACKSTAGE_IMAGE_REMOTE}${NC}"
+  ${DOCKER_CMD} pull "${BACKSTAGE_IMAGE_REMOTE}"
+  ${DOCKER_CMD} tag "${BACKSTAGE_IMAGE_REMOTE}" localhost:5000/om-backstage:local
+  echo -e "${BLUE}📦 Pushing image to local registry...${NC}"
+  ${DOCKER_CMD} push localhost:5000/om-backstage:local
+  echo -e "${GREEN}✅ Image pulled + pushed.${NC}"
+elif [[ "${BUILD_BACKSTAGE_IMAGE}" == "true" ]]; then
   echo -e "${YELLOW}⏳ Building Backstage image (this can take a while)...${NC}"
   ${DOCKER_CMD} build \
     -t localhost:5000/om-backstage:local \
@@ -387,9 +570,20 @@ else
     echo -e "${RED}❌ Backstage image not found!${NC}"
     echo -e "${YELLOW}Build it with:${NC}"
     echo -e "  $0 --build-backstage-image"
+    echo -e "${YELLOW}Or pull it with:${NC}"
+    echo -e "  $0 --pull-backstage-image"
     exit 1
   fi
 fi
+
+# Import the image into the k3d cluster to avoid flaky pulls and local registry HTTPS/HTTP issues.
+# Kubelet/containerd may attempt HTTPS when pulling from the local registry; importing avoids that.
+BACKSTAGE_IMAGE_LOCALHOST="localhost:5000/om-backstage:local"
+BACKSTAGE_IMAGE_K3D="k3d-om-registry:${K3D_REGISTRY_PORT}/om-backstage:local"
+echo -e "${BLUE}\U0001F4E6 Importing Backstage image into k3d...${NC}"
+${DOCKER_CMD} tag "${BACKSTAGE_IMAGE_LOCALHOST}" "${BACKSTAGE_IMAGE_K3D}" 2>/dev/null || true
+$K3D_CMD image import --cluster om-cluster "${BACKSTAGE_IMAGE_K3D}" >/dev/null 2>&1 || true
+echo -e "${GREEN}\u2705 Backstage image imported into k3d.${NC}"
 
 # =============================================================================
 # 7. Generate TLS Certificate
@@ -446,7 +640,31 @@ DESIRED_PG_IMAGE="docker.io/bitnamilegacy/postgresql:17.6.0-debian-12-r4"
 # Pre-pull and import the PostgreSQL image into k3d to avoid flaky in-node pulls/DNS.
 if $K3D_CMD cluster list 2>/dev/null | awk '{print $1}' | grep -qx "om-cluster"; then
   echo -e "${BLUE}📦 Ensuring PostgreSQL image is available in k3d...${NC}"
-  ${DOCKER_CMD} pull "${DESIRED_PG_IMAGE}" >/dev/null
+  if ${DOCKER_CMD} image inspect "${DESIRED_PG_IMAGE}" >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ PostgreSQL image already present locally${NC}"
+  else
+    echo -e "${YELLOW}⏳ Pulling PostgreSQL image from Docker Hub...${NC}"
+    PULL_OK=false
+    for _attempt in 1 2 3; do
+      if ${DOCKER_CMD} pull "${DESIRED_PG_IMAGE}" >/dev/null 2>&1; then
+        PULL_OK=true
+        break
+      fi
+      echo -e "${YELLOW}⚠️  Pull attempt ${_attempt}/3 failed; retrying in 5s...${NC}"
+      sleep 5
+    done
+
+    if [[ "${PULL_OK}" != "true" ]]; then
+      echo -e "${RED}❌ Unable to pull '${DESIRED_PG_IMAGE}' from Docker Hub.${NC}"
+      echo -e "${YELLOW}This usually means your machine can't reach registry-1.docker.io (network/proxy/DNS).${NC}"
+      echo -e "${YELLOW}Fix options:${NC}"
+      echo -e "${YELLOW}  1) Ensure you have internet access to Docker Hub, then re-run this script.${NC}"
+      echo -e "${YELLOW}  2) Pre-load the image into Docker by other means, then re-run this script.${NC}"
+      echo -e "${YELLOW}     (Once present locally, the script will import it into k3d without pulling.)${NC}"
+      exit 1
+    fi
+  fi
+
   $K3D_CMD image import -c om-cluster "${DESIRED_PG_IMAGE}" >/dev/null 2>&1 || true
 fi
 
@@ -471,21 +689,122 @@ if kubectl get pod -n backstage backstage-postgresql-0 &>/dev/null; then
 fi
 
 # Create temporary override with dynamic values
-OVERRIDE_FILE=$(mktemp /tmp/backstage-override-XXXXXX.yaml)
+# macOS mktemp can occasionally fail with 'File exists' (rare collision / template issues).
+# Retry a few times with a safer template under TMPDIR.
+OVERRIDE_FILE=""
+for _dir in "${TMPDIR:-}" "/tmp"; do
+  [[ -z "${_dir}" ]] && continue
+  for _i in 1 2 3 4 5; do
+    OVERRIDE_FILE=$(mktemp "${_dir%/}/backstage-override.XXXXXXXXXX" 2>/dev/null || true)
+    if [[ -n "${OVERRIDE_FILE}" && -f "${OVERRIDE_FILE}" ]]; then
+      break 2
+    fi
+    OVERRIDE_FILE=""
+  done
+done
+if [[ -z "${OVERRIDE_FILE}" ]]; then
+  echo -e "${RED}❌ Failed to create temporary Helm override file under ${TMPDIR:-/tmp}${NC}"
+  exit 1
+fi
 cat > "${OVERRIDE_FILE}" <<EOF
+commonLabels:
+  backstage.io/kubernetes-id: backstage
+
 backstage:
   pdb:
     create: false
   autoscaling:
     enabled: false
+  extraEnvVars:
+    - name: OM_GIT_REVISION
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: OM_GIT_REVISION
+    - name: OM_GIT_REPO_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: OM_GIT_REPO_URL
+    - name: GITHUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_TOKEN
+    - name: GITHUB_ORG
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_ORG
+    - name: GITHUB_REPO
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GITHUB_REPO
+    - name: GOOGLE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_ID
+    - name: GOOGLE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: GOOGLE_CLIENT_SECRET
+    - name: KUBERNETES_SA_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_SA_TOKEN
+    - name: KUBERNETES_API_URL
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_API_URL
+    - name: KUBERNETES_CA_DATA
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: KUBERNETES_CA_DATA
+    - name: ARGOCD_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: ARGOCD_USERNAME
+    - name: ARGOCD_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: backstage-secrets
+          key: ARGOCD_PASSWORD
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_ACCESS_KEY_ID
+          optional: true
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_SECRET_ACCESS_KEY
+          optional: true
+    - name: AWS_REGION
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: AWS_REGION
+          optional: true
+    - name: TECHDOCS_BUCKET_NAME
+      valueFrom:
+        secretKeyRef:
+          name: backstage-s3-auth
+          key: TECHDOCS_BUCKET_NAME
+          optional: true
   image:
     registry: "k3d-om-registry:5000"
     repository: om-backstage
     tag: local
-    pullPolicy: Always
-  podLabels:
-    backstage.io/kubernetes-id: backstage
-  
+    pullPolicy: Never
   appConfig:
     app:
       baseUrl: ${BACKSTAGE_BASE_URL}
@@ -495,6 +814,10 @@ backstage:
         origin: ${BACKSTAGE_BASE_URL}
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
+      reading:
+        allow:
+          - host: raw.githubusercontent.com
+          - host: github.com
       database:
         client: pg
         connection:
@@ -522,25 +845,21 @@ backstage:
           token: \${GITHUB_TOKEN}
     
     catalog:
-      providers:
-        github:
-          om-platform:
-            organization: \${GITHUB_ORG}
-            catalogPath: '/catalog-info.yaml'
+      providers: {}
       locations:
         - type: url
-          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog/users.yaml
+          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog/users.yaml
         - type: url
-          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/main/platform/portal/backstage/catalog-info.yaml
+          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/catalog-info.yaml
         - type: url
-          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/new-application/template.yaml
+          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/new-application/template.yaml
         - type: url
-          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/request-service/template.yaml
+          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/request-service/template.yaml
         - type: url
-          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/main/platform/portal/backstage/templates/team-onboarding/template.yaml
+          target: https://github.com/\${GITHUB_ORG}/\${GITHUB_REPO}/blob/${OM_GIT_REVISION}/platform/portal/backstage/templates/team-onboarding/template.yaml
     
     argocd:
-      baseUrl: http://argocd-server.argocd.svc
+      baseUrl: https://${ARGOCD_DOMAIN}
       username: \${ARGOCD_USERNAME}
       password: \${ARGOCD_PASSWORD}
 
@@ -581,6 +900,18 @@ helm upgrade --install backstage backstage/backstage \
   --timeout 20m \
   --wait
 
+# Backstage catalog migrations can fail hard in some chart/image combinations if
+# legacy tables are missing or a previous migration left a lock behind.
+# Make the bootstrap idempotent by ensuring legacy tables exist (so 'drop table'
+# migrations succeed) and by releasing any stuck migration lock.
+kubectl -n backstage exec deploy/backstage -- node -e "const {Client}=require('pg');(async()=>{const db='backstage_plugin_catalog';const c=new Client({host:process.env.POSTGRES_HOST||'backstage-postgresql',port:Number(process.env.POSTGRES_PORT||5432),user:process.env.POSTGRES_USER||'postgres',password:process.env.POSTGRES_PASSWORD,database:db});await c.connect();await c.query('create table if not exists entities (id serial primary key, entity_id text, entity text)');await c.query('create table if not exists entities_relations (id serial primary key, entity_id text, relation_type text, target_entity_id text)');await c.query('create table if not exists entities_search (id serial primary key, entity_id text, document text)');try{await c.query('update knex_migrations_lock set is_locked=0 where index=1');}catch(e){};await c.end();console.log('catalog db bootstrap complete');})().catch(e=>{console.error(e);process.exit(1)});" >/dev/null 2>&1 || true
+
+# Ensure pods carry the Kubernetes plugin identifier label. The chart version
+# used here doesn't reliably propagate commonLabels into the pod template.
+kubectl -n backstage patch deploy/backstage \
+  --type merge \
+  -p '{"spec":{"template":{"metadata":{"labels":{"backstage.io/kubernetes-id":"backstage"}}}}}' >/dev/null 2>&1 || true
+
 # Ensure PostgreSQL is ready before relying on Backstage plugin initialization.
 kubectl wait --for=condition=ready pod -n backstage -l app.kubernetes.io/name=postgresql --timeout=10m 2>/dev/null || true
 
@@ -605,7 +936,7 @@ echo -e "${GREEN}✅ Backstage deployed successfully${NC}"
 
 # Fix Host header for port-forwarding
 kubectl apply -f - <<EOF
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: backstage-host-fix
@@ -622,7 +953,7 @@ kubectl annotate ingress backstage -n backstage traefik.ingress.kubernetes.io/ro
 # Host: portal.backstage.com:9443 which doesn't match a plain Host(`portal.backstage.com`).
 # Add explicit IngressRoutes that match both variants.
 cat <<'EOF' | sed "s|__BACKSTAGE_DOMAIN__|${BACKSTAGE_DOMAIN}|g" | kubectl apply -f -
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: backstage-portforward
@@ -648,13 +979,13 @@ EOF
 # =============================================================================
 OM_GIT_REPO_SSH="${OM_GIT_REPO_SSH:-git@github.com:${GITHUB_ORG}/${GITHUB_REPO}.git}"
 sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REPO_SSH__|${OM_GIT_REPO_SSH}|g" "${PROJECT_ROOT}/argocd/bootstrap/projects.yaml" | kubectl apply -f - 2>/dev/null || true
-sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" | kubectl apply -f - 2>/dev/null || true
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" | kubectl apply -f - 2>/dev/null || true
 
 # Apply remaining ArgoCD bootstrap manifests that depend on the repo URL.
-sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/bootstrap/app-of-apps.yaml" | kubectl apply -f - 2>/dev/null || true
-sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/applicationsets/team-apps.yaml" | kubectl apply -f - 2>/dev/null || true
-sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/cert-issuers.yaml" | kubectl apply -f - 2>/dev/null || true
-sed "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" "${PROJECT_ROOT}/argocd/bootstrap/argocd-cm.yaml" | kubectl apply -f - 2>/dev/null || true
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/bootstrap/app-of-apps.yaml" | kubectl apply -f - 2>/dev/null || true
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/applicationsets/team-apps.yaml" | kubectl apply -f - 2>/dev/null || true
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/cert-issuers.yaml" | kubectl apply -f - 2>/dev/null || true
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/bootstrap/argocd-cm.yaml" | kubectl apply -f - 2>/dev/null || true
 
 # Ensure Backstage uses the pre-created service account + Kubernetes plugin works with k3d's self-signed CA.
 kubectl -n argocd patch application backstage --type='json' -p='[
@@ -683,6 +1014,12 @@ if [[ -z "${TRAEFIK_IP}" ]]; then
 else
   echo -e "${YELLOW}║    ${TRAEFIK_IP}  ${BACKSTAGE_DOMAIN}${NC}"
   echo -e "${YELLOW}║    ${TRAEFIK_IP}  ${ARGOCD_DOMAIN}${NC}"
+
+  RESOLVED_IP=$(getent hosts "${BACKSTAGE_DOMAIN}" 2>/dev/null | awk '{print $1}' | head -n 1 || true)
+  if [[ -n "${RESOLVED_IP}" && "${RESOLVED_IP}" != "${TRAEFIK_IP}" ]]; then
+    echo -e "${YELLOW}║  WARN: ${BACKSTAGE_DOMAIN} resolves to ${RESOLVED_IP} (expected ${TRAEFIK_IP})${NC}"
+    echo -e "${YELLOW}║        Run: sudo ${PROJECT_ROOT}/scripts/update-backstage-hosts.sh --apply${NC}"
+  fi
 fi
 echo -e "${GREEN}╠══════════════════════════════════════════════════╣${NC}"
 echo -e "${GREEN}║  ArgoCD admin password: ${YELLOW}${ARGOCD_PASS}${NC}"
@@ -700,3 +1037,32 @@ echo -e "${BLUE}🔍 Troubleshooting:${NC}"
 echo -e "   Check pods:    kubectl get pods -n backstage"
 echo -e "   Check logs:    kubectl logs -n backstage -l app.kubernetes.io/name=backstage"
 echo -e "   Check ingress: kubectl get ingress -n backstage"
+
+SKIP_SMOKE_TEST="${SKIP_SMOKE_TEST:-false}"
+if [[ "${SKIP_SMOKE_TEST}" != "true" ]]; then
+  http_smoke_test "Backstage" "https://${BACKSTAGE_DOMAIN}/"
+  http_smoke_test "ArgoCD" "https://${ARGOCD_DOMAIN}/"
+fi
+
+FIX_COREDNS_ON_DNS_FAILURE="${FIX_COREDNS_ON_DNS_FAILURE:-false}"
+if [[ "${FIX_COREDNS_ON_DNS_FAILURE}" == "true" ]]; then
+  echo ""
+  echo -e "${BLUE}🧪 Checking in-cluster DNS (OAuth/GitHub/TechDocs depend on this)...${NC}"
+  if kubectl -n backstage exec deploy/backstage -- node -e "require('node:dns').promises.lookup('oauth2.googleapis.com').then(()=>process.exit(0)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ In-cluster DNS OK${NC}"
+  else
+    echo -e "${YELLOW}⚠️  In-cluster DNS lookup failed. Applying CoreDNS forwarder fix...${NC}"
+    kubectl -n kube-system get cm coredns -o yaml \
+      | sed 's|forward \\. /etc/resolv\\.conf|forward . 1.1.1.1 8.8.8.8|g' \
+      | kubectl apply -f - >/dev/null
+    kubectl -n kube-system rollout restart deploy/coredns >/dev/null
+    kubectl -n kube-system rollout status deploy/coredns --timeout=2m >/dev/null || true
+
+    if kubectl -n backstage exec deploy/backstage -- node -e "require('node:dns').promises.lookup('oauth2.googleapis.com').then(()=>process.exit(0)).catch(()=>process.exit(1))" >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ CoreDNS fix applied; DNS now works${NC}"
+    else
+      echo -e "${RED}❌ CoreDNS fix attempted but DNS is still failing${NC}"
+      echo -e "${YELLOW}   Check CoreDNS logs: kubectl -n kube-system logs deploy/coredns --since=10m${NC}"
+    fi
+  fi
+fi

@@ -6,18 +6,19 @@
 
 app:
   title: OM Platform Portal
-  baseUrl: https://portal.backstage.com
+  baseUrl: https://portal.example.com
 
 organization:
   name: Your Organization
 
 backend:
-  baseUrl: https://portal.backstage.com
+  baseUrl: https://portal.example.com
   listen:
     port: 7007
   csp:
     connect-src: ["'self'", 'http:', 'https:']
-    origin: https://portal.backstage.com
+  cors:
+    origin: https://portal.example.com
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
 
@@ -40,14 +41,16 @@ backend:
 auth:
   environment: production
   providers:
-    google:
+    oidc:
       production:
-        clientId: ${GOOGLE_CLIENT_ID}
-        clientSecret: ${GOOGLE_CLIENT_SECRET}
+        metadataUrl: ${OIDC_METADATA_URL}
+        clientId: ${OIDC_CLIENT_ID}
+        clientSecret: ${OIDC_CLIENT_SECRET}
+        prompt: auto
+        scope: 'openid profile email groups'
         signIn:
           resolvers:
             - resolver: emailMatchingUserEntityProfileEmail
-            - resolver: emailLocalPartMatchingUserEntityName
 
 # =============================================================================
 # Integrations
@@ -66,33 +69,16 @@ catalog:
     pullRequestBranchName: backstage-integration
   rules:
     - allow: [Component, System, API, Resource, Location, Group, User, Template]
-  
-  providers:
-    github:
-      om-platform:
-        organization: ${GITHUB_ORG}
-        catalogPath: '/catalog-info.yaml'
-        filters:
-          repository: '.*'
-        schedule:
-          frequency: { minutes: 30 }
-          timeout: { minutes: 3 }
-
   locations:
+    # Platform catalog
+    - type: url
+      target: https://github.com/skyengpro/om/blob/main/catalog/all.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Template, Group]
 
-    # Local templates
-    - type: file
-      target: ./templates/new-application/template.yaml
-      rules:
-        - allow: [Template]
-    - type: file
-      target: ./templates/request-service/template.yaml
-      rules:
-        - allow: [Template]
-    - type: file
-      target: ./templates/team-onboarding/template.yaml
-      rules:
-        - allow: [Template]
+    # Team catalogs (auto-discovered)
+    - type: github-discovery
+      target: https://github.com/skyengpro/*/blob/main/catalog-info.yaml
 
 # =============================================================================
 # Scaffolder (Templates)
@@ -132,15 +118,15 @@ kubernetes:
 # ArgoCD
 # =============================================================================
 argocd:
-  baseUrl: ${ARGOCD_BASE_URL:-http://argocd-server.argocd.svc}
-  username: ${ARGOCD_USERNAME:-admin}
+  baseUrl: https://argocd.example.com
+  username: ${ARGOCD_USERNAME}
   password: ${ARGOCD_PASSWORD}
   appLocatorMethods:
     - type: config
       instances:
         - name: production
-          url: ${ARGOCD_BASE_URL:-http://argocd-server.argocd.svc}
-          username: ${ARGOCD_USERNAME:-admin}
+          url: https://argocd.example.com
+          username: ${ARGOCD_USERNAME}
           password: ${ARGOCD_PASSWORD}
 
 # =============================================================================
@@ -164,7 +150,10 @@ techdocs:
   generator:
     runIn: 'local'
   publisher:
-    type: 'local'
+    type: 'awsS3'
+    awsS3:
+      bucketName: ${TECHDOCS_BUCKET}
+      region: ${AWS_REGION}
 
 # =============================================================================
 # Search
