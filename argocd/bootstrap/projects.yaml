@@ -17,6 +17,8 @@ spec:
 
   sourceRepos:
     - https://github.com/skyengpro/om.git
+    - https://github.com/JOELNATHAN544/om.git
+    - https://backstage.github.io/charts
     - https://charts.jetstack.io
     - https://prometheus-community.github.io/helm-charts
     - https://argoproj.github.io/argo-helm
@@ -34,7 +36,7 @@ spec:
       kind: '*'
 
   orphanedResources:
-    warn: true
+    warn: false
 
 ---
 # Team Template Project - Copy and customize for each team
