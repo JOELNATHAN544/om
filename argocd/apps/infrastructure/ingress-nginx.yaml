@@ -43,16 +43,11 @@ spec:
             targetCPUUtilizationPercentage: 80
 
           service:
-            type: LoadBalancer
-            annotations:
-              # AWS NLB
-              service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-              service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+            type: ClusterIP
+            annotations: {}
 
           metrics:
-            enabled: true
-            serviceMonitor:
-              enabled: true
+            enabled: false
 
           config:
             use-forwarded-headers: "true"
