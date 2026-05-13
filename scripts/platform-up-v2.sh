@@ -479,7 +479,7 @@ fi
 kubectl -n argocd rollout status deploy/argocd-server --timeout=10m >/dev/null 2>&1 || true
 
 # Fix Host header for VM port-forwarding (browsers may include :<port> in Host).
-kubectl apply -f - <<EOF
+kubectl apply -f - <<EOF || true
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -490,7 +490,7 @@ spec:
     customRequestHeaders:
       Host: "${ARGOCD_DOMAIN}"
 EOF
-cat <<'EOF' | sed "s|__ARGOCD_DOMAIN__|${ARGOCD_DOMAIN}|g" | kubectl apply -f -
+cat <<'EOF' | sed "s|__ARGOCD_DOMAIN__|${ARGOCD_DOMAIN}|g" | kubectl apply -f - || true
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -1012,7 +1012,7 @@ rm -f "${OVERRIDE_FILE}"
 echo -e "${GREEN}✅ Backstage deployed successfully${NC}"
 
 # Fix Host header for port-forwarding
-kubectl apply -f - <<EOF
+kubectl apply -f - <<EOF || true
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -1023,13 +1023,13 @@ spec:
     customRequestHeaders:
       Host: "${BACKSTAGE_DOMAIN}"
 EOF
-kubectl annotate ingress backstage -n backstage traefik.ingress.kubernetes.io/router.middlewares=backstage-backstage-host-fix@kubernetescrd --overwrite
+kubectl annotate ingress backstage -n backstage traefik.ingress.kubernetes.io/router.middlewares=backstage-backstage-host-fix@kubernetescrd --overwrite || true
 
 # Traefik matches Host rules against the raw Host header. When accessing the VM via
 # Vagrant forwarded ports (e.g. https://portal.backstage.com:9443), browsers send
 # Host: portal.backstage.com:9443 which doesn't match a plain Host(`portal.backstage.com`).
 # Add explicit IngressRoutes that match both variants.
-cat <<'EOF' | sed "s|__BACKSTAGE_DOMAIN__|${BACKSTAGE_DOMAIN}|g" | kubectl apply -f -
+cat <<'EOF' | sed "s|__BACKSTAGE_DOMAIN__|${BACKSTAGE_DOMAIN}|g" | kubectl apply -f - || true
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
