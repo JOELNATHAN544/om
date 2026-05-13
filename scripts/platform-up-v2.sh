@@ -205,20 +205,37 @@ wait_for_cluster_networking() {
 }
 
 ensure_traefik() {
+  # Kill any crashing built-in k3s Traefik install jobs — they conflict with our Helm install.
+  # This happens when the cluster was created without --disable=traefik (older runs).
+  kubectl delete job -n kube-system helm-install-traefik helm-install-traefik-crd \
+    --ignore-not-found=true >/dev/null 2>&1 || true
+  kubectl delete helmchart -n kube-system traefik traefik-crd \
+    --ignore-not-found=true >/dev/null 2>&1 || true
+
   if kubectl -n kube-system get deploy traefik >/dev/null 2>&1; then
     return 0
   fi
 
   echo -e "${YELLOW}⚠️  Traefik is not installed in kube-system. Installing via Helm...${NC}"
+
+  # Wait for nodes to be Ready before attempting any Helm install
+  echo -e "${BLUE}⏳ Waiting for cluster nodes to be Ready...${NC}"
+  kubectl wait --for=condition=Ready nodes --all --timeout=3m 2>/dev/null || true
+
+  # Wait for kube-system core pods (coredns) to be running
+  retry 30 5 bash -c 'kubectl get pods -n kube-system 2>/dev/null | grep -q "Running"' || true
+
   helm repo add traefik https://traefik.github.io/charts --force-update >/dev/null 2>&1 || true
   helm repo update traefik >/dev/null 2>&1 || true
-  kubectl create namespace kube-system --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1 || true
 
+  # Install CRDs first — required by newer Traefik chart versions
+  echo -e "${BLUE}⏳ Installing Traefik CRDs...${NC}"
   helm upgrade --install traefik-crds traefik/traefik-crds \
     -n kube-system \
-    --wait --timeout 10m \
-    --skip-schema-validation >/dev/null 2>&1 || true
+    --wait --timeout 5m \
+    --skip-schema-validation 2>&1 | grep -v "^$" || true
 
+  echo -e "${BLUE}⏳ Installing Traefik...${NC}"
   helm upgrade --install traefik traefik/traefik \
     -n kube-system \
     --set providers.kubernetesCRD.enabled=true \
@@ -229,7 +246,7 @@ ensure_traefik() {
     --set ingressClass.enabled=true \
     --set ingressClass.isDefaultClass=true \
     --skip-schema-validation \
-    --wait --timeout 20m
+    --wait --timeout 5m
 }
 
 http_smoke_test() {
@@ -367,12 +384,16 @@ else
     -p "${K3D_HTTP_PORT}:80@loadbalancer" \
     -p "${K3D_HTTPS_PORT}:443@loadbalancer" \
     --registry-use "k3d-om-registry:${K3D_REGISTRY_PORT}" \
-    --agents "${K3D_AGENTS}"
+    --agents "${K3D_AGENTS}" \
+    --k3s-arg "--disable=traefik@server:*"
 fi
 
 $K3D_CMD kubeconfig get om-cluster > "${HOME}/.kube/config"
 chmod 600 "${HOME}/.kube/config"
 echo -e "${GREEN}✅ Kubeconfig updated.${NC}"
+
+# Wait for API server to be reachable before doing anything else
+retry 30 3 kubectl get nodes >/dev/null 2>&1 || true
 
 ensure_traefik
 
