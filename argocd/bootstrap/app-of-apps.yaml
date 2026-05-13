@@ -19,8 +19,8 @@ spec:
   project: platform
 
   source:
-    repoURL: __OM_GIT_REPO_URL__
-    targetRevision: __OM_GIT_REVISION__
+    repoURL: https://github.com/JOELNATHAN544/om.git
+    targetRevision: main
     path: argocd/apps
 
   destination:
@@ -67,8 +67,8 @@ spec:
   project: platform
 
   source:
-    repoURL: __OM_GIT_REPO_URL__
-    targetRevision: __OM_GIT_REVISION__
+    repoURL: https://github.com/JOELNATHAN544/om.git
+    targetRevision: main
     path: argocd/apps/infrastructure
 
   destination:

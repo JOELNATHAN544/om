@@ -13,7 +13,7 @@ backstage:
     registry: k3d-om-registry:5000
     repository: om-backstage
     tag: local
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
   resources:
     requests:

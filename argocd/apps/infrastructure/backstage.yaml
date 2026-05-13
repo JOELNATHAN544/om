@@ -40,8 +40,8 @@ spec:
             value: admin-password
         valueFiles:
           - $values/helm/values/prod/backstage-values.yaml
-    - repoURL: __OM_GIT_REPO_URL__
-      targetRevision: __OM_GIT_REVISION__
+    - repoURL: https://github.com/JOELNATHAN544/om.git
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc

@@ -16,8 +16,8 @@ spec:
   generators:
     # Git Generator - Discover applications from directory structure
     - git:
-        repoURL: __OM_GIT_REPO_URL__
-        revision: __OM_GIT_REVISION__
+        repoURL: https://github.com/JOELNATHAN544/om.git
+        revision: main
         directories:
           # Each team has a directory: argocd/apps/<team>/<app>/
           - path: argocd/apps/*/*
@@ -37,8 +37,8 @@ spec:
       project: 'team-{{path[2]}}'
 
       source:
-        repoURL: __OM_GIT_REPO_URL__
-        targetRevision: __OM_GIT_REVISION__
+        repoURL: https://github.com/JOELNATHAN544/om.git
+        targetRevision: main
         path: '{{path}}'
         helm:
           valueFiles:
@@ -109,8 +109,8 @@ spec:
       project: '{{project}}'
 
       source:
-        repoURL: __OM_GIT_REPO_URL__
-        targetRevision: __OM_GIT_REVISION__
+        repoURL: https://github.com/JOELNATHAN544/om.git
+        targetRevision: main
         path: 'argocd/apps/{{team}}'
         helm:
           valueFiles:

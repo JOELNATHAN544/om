@@ -26,7 +26,7 @@ spec:
       releaseName: ingress-nginx
       values: |
         controller:
-          replicaCount: 2
+          replicaCount: 1
 
           resources:
             requests:
@@ -37,8 +37,8 @@ spec:
               memory: 256Mi
 
           autoscaling:
-            enabled: true
-            minReplicas: 2
+            enabled: false
+            minReplicas: 1
             maxReplicas: 10
             targetCPUUtilizationPercentage: 80
 
@@ -62,7 +62,7 @@ spec:
 
           podDisruptionBudget:
             enabled: true
-            minAvailable: 1
+            minAvailable: 0
 
         defaultBackend:
           enabled: true
