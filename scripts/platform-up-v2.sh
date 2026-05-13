@@ -339,7 +339,15 @@ fi
 mkdir -p "${HOME}/.kube"
 
 if $K3D_CMD cluster list 2>/dev/null | grep -q "om-cluster"; then
-  echo -e "${GREEN}✅ Cluster 'om-cluster' already exists.${NC}"
+  # Cluster exists — make sure it is actually running (nodes ready).
+  # If stopped (e.g. after a machine reboot), start it before proceeding.
+  CLUSTER_SERVERS_RUNNING=$($K3D_CMD cluster list 2>/dev/null | awk '/om-cluster/{print $2}' | cut -d'/' -f1)
+  if [[ "${CLUSTER_SERVERS_RUNNING}" == "0" ]]; then
+    echo -e "${YELLOW}⚠️  Cluster 'om-cluster' exists but is stopped. Starting it...${NC}"
+    $K3D_CMD cluster start om-cluster
+  else
+    echo -e "${GREEN}✅ Cluster 'om-cluster' already exists and is running.${NC}"
+  fi
 else
   echo -e "${BLUE}📦 Creating K3d registry 'om-registry'...${NC}"
   if $K3D_CMD registry list 2>/dev/null | awk '{print $1}' | grep -qx "k3d-om-registry"; then
@@ -397,14 +405,11 @@ if ! kubectl -n argocd get secret argocd-tls >/dev/null 2>&1; then
   echo -e "${GREEN}✅ ArgoCD TLS certificate created.${NC}"
 fi
 
-# Avoid Helm server-side apply field ownership conflicts with previously applied ConfigMaps.
-# We strip managedFields instead of deleting, so ArgoCD keeps its config during the upgrade.
-if kubectl get configmap argocd-cm -n argocd >/dev/null 2>&1; then
-  kubectl patch configmap argocd-cm -n argocd \
-    --type=json \
-    -p='[{"op":"remove","path":"/metadata/managedFields"}]' \
-    >/dev/null 2>&1 || true
-fi
+# Avoid Helm server-side apply field ownership conflicts on argocd-cm.
+# If the CM was previously applied via kubectl (client-side), it carries
+# kubectl-client-side-apply field ownership that conflicts with Helm SSA.
+# Delete it so Helm can create it cleanly. ArgoCD recreates it on startup.
+kubectl delete configmap argocd-cm -n argocd --ignore-not-found=true >/dev/null 2>&1 || true
 
 # If we previously patched the ArgoCD Ingress (or applied custom routes), Helm's
 # server-side apply may conflict on spec.rules ownership. Recreate it cleanly.
@@ -906,6 +911,12 @@ kubectl -n argocd patch application backstage \
   --type merge \
   -p '{"spec":{"syncPolicy":{"automated":null}}}' >/dev/null 2>&1 || true
 
+# The ingress-nginx admission webhook uses a self-signed cert that becomes stale
+# across cluster restarts. Delete it before any Helm install that creates Ingress
+# resources — Helm will fail with x509 errors otherwise. ingress-nginx recreates
+# it automatically on its next sync.
+kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+
 # Strip managedFields from conflicting resources so Helm can re-claim ownership cleanly.
 for resource in \
   "configmap/backstage-app-config" \
@@ -1023,13 +1034,21 @@ EOF
 # 10. Register in ArgoCD
 # =============================================================================
 OM_GIT_REPO_SSH="${OM_GIT_REPO_SSH:-git@github.com:${GITHUB_ORG}/${GITHUB_REPO}.git}"
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REPO_SSH__|${OM_GIT_REPO_SSH}|g" "${PROJECT_ROOT}/argocd/bootstrap/projects.yaml" | kubectl apply -f - 2>/dev/null || true
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" | kubectl apply -f - 2>/dev/null || true
 
-# Apply remaining ArgoCD bootstrap manifests that depend on the repo URL.
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/bootstrap/app-of-apps.yaml" | kubectl apply -f - 2>/dev/null || true
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/applicationsets/team-apps.yaml" | kubectl apply -f - 2>/dev/null || true
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/bootstrap/argocd-cm.yaml" | kubectl apply -f - 2>/dev/null || true
+# Apply ArgoCD bootstrap manifests. The argocd/ files no longer contain template
+# variables — they have the real repo URL baked in. The sed substitution is kept
+# only for projects.yaml which still uses __OM_GIT_REPO_URL__ / __OM_GIT_REPO_SSH__.
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" \
+    -e "s|__OM_GIT_REPO_SSH__|${OM_GIT_REPO_SSH}|g" \
+    "${PROJECT_ROOT}/argocd/bootstrap/projects.yaml" | kubectl apply -f - 2>/dev/null || true
+
+kubectl apply -f "${PROJECT_ROOT}/argocd/apps/infrastructure/backstage.yaml" 2>/dev/null || true
+kubectl apply -f "${PROJECT_ROOT}/argocd/bootstrap/app-of-apps.yaml" 2>/dev/null || true
+kubectl apply -f "${PROJECT_ROOT}/argocd/applicationsets/team-apps.yaml" 2>/dev/null || true
+
+sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" \
+    -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" \
+    "${PROJECT_ROOT}/argocd/bootstrap/argocd-cm.yaml" | kubectl apply -f - 2>/dev/null || true
 
 # Deploy cert-manager via ArgoCD before cert-issuers (cert-issuers depends on cert-manager CRDs)
 echo -e "${BLUE}🔐 Deploying cert-manager...${NC}"
@@ -1049,13 +1068,14 @@ done
 kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=5m 2>/dev/null || true
 echo -e "${GREEN}✅ cert-manager ready.${NC}"
 
-sed -e "s|__OM_GIT_REPO_URL__|${OM_GIT_REPO_URL}|g" -e "s|__OM_GIT_REVISION__|${OM_GIT_REVISION}|g" "${PROJECT_ROOT}/argocd/apps/infrastructure/cert-issuers.yaml" | kubectl apply -f - 2>/dev/null || true
+kubectl apply -f "${PROJECT_ROOT}/argocd/apps/infrastructure/cert-issuers.yaml" 2>/dev/null || true
 
-# Ensure Backstage uses the pre-created service account + Kubernetes plugin works with k3d's self-signed CA.
+# Ensure Backstage ArgoCD app uses the pre-created service account.
+# sources[0] = Helm chart (backstage.github.io/charts)
+# sources[1] = git values ref (github.com/JOELNATHAN544/om.git)
 kubectl -n argocd patch application backstage --type='json' -p='[
   {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"serviceAccount.create","value":"false"}},
-  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"serviceAccount.name","value":"backstage"}},
-  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"backstage.appConfig.kubernetes.clusterLocatorMethods[0].clusters[0].skipTLSVerify","value":"true"}}
+  {"op":"add","path":"/spec/sources/0/helm/parameters/-","value":{"name":"serviceAccount.name","value":"backstage"}}
 ]' 2>/dev/null || true
 
 kubectl -n argocd annotate application backstage argocd.argoproj.io/refresh=hard --overwrite 2>/dev/null || true
@@ -1072,12 +1092,12 @@ kubectl rollout restart deployment/argocd-server -n argocd 2>/dev/null || true
 kubectl rollout restart deployment/argocd-repo-server -n argocd 2>/dev/null || true
 
 # Wait for ArgoCD components to be ready
-kubectl rollout status deployment/argocd-server -n argocd --timeout=60s 2>/dev/null || true
-kubectl rollout status deployment/argocd-repo-server -n argocd --timeout=60s 2>/dev/null || true
+kubectl rollout status deployment/argocd-server -n argocd --timeout=5m 2>/dev/null || true
+kubectl rollout status deployment/argocd-repo-server -n argocd --timeout=5m 2>/dev/null || true
 
-# Refresh applications to pick up updated configuration
-for app in cert-issuers ingress-nginx n8n; do
-  kubectl -n argocd annotate application "$app" argocd.argoproj.io/refresh="$(date +%s)" --overwrite 2>/dev/null || true
+# Hard-refresh all apps so ArgoCD picks up the latest git commit immediately
+for app in $(kubectl get applications -n argocd --no-headers 2>/dev/null | awk '{print $1}'); do
+  kubectl -n argocd annotate application "$app" argocd.argoproj.io/refresh=hard --overwrite 2>/dev/null || true
 done
 
 # =============================================================================
