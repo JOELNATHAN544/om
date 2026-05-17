@@ -72,13 +72,13 @@ catalog:
   locations:
     # Platform catalog
     - type: url
-      target: https://github.com/skyengpro/om/blob/main/catalog/all.yaml
+      target: https://github.com/JOELNATHAN544/om/blob/main/catalog/all.yaml
       rules:
         - allow: [Component, System, API, Resource, Template, Group]
 
     # Team catalogs (auto-discovered)
     - type: github-discovery
-      target: https://github.com/skyengpro/*/blob/main/catalog-info.yaml
+      target: https://github.com/JOELNATHAN544/*/blob/main/catalog-info.yaml
 
 # =============================================================================
 # Scaffolder (Templates)
