@@ -932,12 +932,6 @@ kubectl -n argocd patch application backstage \
   --type merge \
   -p '{"spec":{"syncPolicy":{"automated":null}}}' >/dev/null 2>&1 || true
 
-# The ingress-nginx admission webhook uses a self-signed cert that becomes stale
-# across cluster restarts. Delete it before any Helm install that creates Ingress
-# resources — Helm will fail with x509 errors otherwise. ingress-nginx recreates
-# it automatically on its next sync.
-kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
-
 # Strip managedFields from conflicting resources so Helm can re-claim ownership cleanly.
 for resource in \
   "configmap/backstage-app-config" \
@@ -962,6 +956,20 @@ fi
 
 # Deploy Backstage with external PostgreSQL
 echo -e "${YELLOW}⏳ Starting Helm deployment (this may take a few minutes)...${NC}"
+
+# Suspend ArgoCD auto-sync on ingress-nginx to prevent it from recreating the
+# webhook between deletion and Helm upgrade.
+kubectl -n argocd patch application ingress-nginx \
+  --type merge \
+  -p '{"spec":{"syncPolicy":{"automated":null}}}' >/dev/null 2>&1 || true
+
+# The ingress-nginx admission webhook uses a self-signed cert that becomes stale
+# across cluster restarts. Delete it RIGHT BEFORE Helm runs — ArgoCD may have
+# re-synced ingress-nginx and recreated it since our earlier cleanup. Helm will
+# fail with x509 errors if the stale webhook is present. ingress-nginx recreates
+# it automatically on its next sync.
+kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+
 helm upgrade --install backstage backstage/backstage \
   --version 0.22.5 \
   -n backstage \
@@ -974,6 +982,11 @@ helm upgrade --install backstage backstage/backstage \
 
 # Re-enable ArgoCD auto-sync on backstage now that Helm has finished.
 kubectl -n argocd patch application backstage \
+  --type merge \
+  -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' >/dev/null 2>&1 || true
+
+# Re-enable ArgoCD auto-sync on ingress-nginx.
+kubectl -n argocd patch application ingress-nginx \
   --type merge \
   -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' >/dev/null 2>&1 || true
 
