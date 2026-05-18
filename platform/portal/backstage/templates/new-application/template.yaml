@@ -224,7 +224,7 @@ spec:
       name: Create Deployment Configuration
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=${{ secrets.GITHUB_ORG }}&repo=${{ secrets.GITHUB_REPO }}
+        repoUrl: github.com?owner=JOELNATHAN544&repo=om
         branchName: onboard-${{ parameters.name }}
         title: 'feat: onboard ${{ parameters.name }} application'
         description: |
