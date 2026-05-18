@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: new-team
+  description: ${{ parameters.displayName || parameters.teamName }}
+  annotations:
+    backstage.io/managed-by-location: url:https://github.com/JOELNATHAN544/om/blob/main/platform/portal/backstage/catalog/teams/new-team.yaml
+spec:
+  type: team
+  profile:
+    displayName: ${{ parameters.displayName || parameters.teamName }}
+    email: wankojoelnathan@gmail.com
+  children: []
+  members:
+    
+    - 
+    
