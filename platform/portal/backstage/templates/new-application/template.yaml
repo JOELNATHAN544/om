@@ -303,7 +303,14 @@ spec:
     #         service: ${{ parameters.cache }}
     #         size: small
 
-    # Step 6: Register in catalog
+    # Step 6: Wait for GitHub to process the commit
+    - id: wait-for-github
+      name: Wait for GitHub
+      action: debug:wait
+      input:
+        seconds: 5
+
+    # Step 7: Register in catalog
     - id: register
       name: Register in Catalog
       action: catalog:register
