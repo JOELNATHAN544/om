@@ -963,12 +963,19 @@ kubectl -n argocd patch application ingress-nginx \
   --type merge \
   -p '{"spec":{"syncPolicy":{"automated":null}}}' >/dev/null 2>&1 || true
 
+# Wait briefly for any in-progress ArgoCD sync to complete
+sleep 2
+
 # The ingress-nginx admission webhook uses a self-signed cert that becomes stale
-# across cluster restarts. Delete it RIGHT BEFORE Helm runs — ArgoCD may have
-# re-synced ingress-nginx and recreated it since our earlier cleanup. Helm will
-# fail with x509 errors if the stale webhook is present. ingress-nginx recreates
-# it automatically on its next sync.
-kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+# across cluster restarts, causing x509 errors. Instead of deleting it (which ArgoCD
+# might immediately recreate), patch its failurePolicy to "Ignore" so Helm can proceed.
+# ArgoCD will restore it to "Fail" on its next sync after we re-enable auto-sync.
+if kubectl get validatingwebhookconfiguration ingress-nginx-admission >/dev/null 2>&1; then
+  kubectl patch validatingwebhookconfiguration ingress-nginx-admission \
+    --type=json \
+    -p='[{"op":"replace","path":"/webhooks/0/failurePolicy","value":"Ignore"}]' \
+    >/dev/null 2>&1 || true
+fi
 
 helm upgrade --install backstage backstage/backstage \
   --version 0.22.5 \
