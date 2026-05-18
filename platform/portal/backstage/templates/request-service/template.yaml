@@ -130,105 +130,78 @@ spec:
   # Execution Steps
   # ==========================================================================
   steps:
-    # Step 1: Validate team has quota
-    - id: validate-quota
-      name: Validate Team Quota
-      action: http:backstage:request
+    # Step 1: Create GitHub issue for service request
+    - id: create-service-issue
+      name: Create Service Request Issue
+      action: github:issues:create
       input:
-        method: GET
-        path: /api/platform/tenants/${{ parameters.owner | replace('group:', '') }}/quota
-
-    # Step 2: Create ServiceRequest
-    - id: create-service-request
-      name: Create Service Request
-      action: http:backstage:request
-      input:
-        method: POST
-        path: /api/kubernetes/apply
-        body:
-          apiVersion: platform.om.io/v1alpha1
-          kind: ServiceRequest
-          metadata:
-            name: ${{ parameters.serviceName }}
-            namespace: ${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}
-            labels:
-              platform.om.io/tenant: ${{ parameters.owner | replace('group:', '') }}
-              platform.om.io/service-type: ${{ parameters.serviceType }}
-              platform.om.io/environment: ${{ parameters.environment }}
-            annotations:
-              backstage.io/created-by: ${{ user.entity.metadata.name }}
-              platform.om.io/application: ${{ parameters.application }}
-          spec:
-            service: ${{ parameters.serviceType }}
-            size: ${{ parameters.size }}
-            config:
-              version: ${{ parameters.version }}
-              storage: ${{ parameters.customConfig.storage }}
-              highAvailability: ${{ parameters.customConfig.highAvailability }}
-
-    # Step 3: Wait for provisioning (for dev, auto-approved)
-    - id: wait-provisioning
-      name: Wait for Provisioning
-      if: ${{ parameters.environment === 'dev' }}
-      action: debug:wait
-      input:
-        seconds: 5
-
-    # Step 4: Register in catalog
-    - id: register-resource
-      name: Register in Catalog
-      action: catalog:register
-      input:
-        catalogInfoPath: |
-          apiVersion: backstage.io/v1alpha1
-          kind: Resource
-          metadata:
-            name: ${{ parameters.serviceName }}
-            description: ${{ parameters.serviceType }} instance for ${{ parameters.owner }}
-            annotations:
-              platform.om.io/service-request: ${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}/${{ parameters.serviceName }}
-            links:
-              - url: /catalog/default/component/${{ parameters.application }}
-                title: Application
-                icon: catalog
-          spec:
-            type: ${{ parameters.serviceType }}
-            owner: ${{ parameters.owner }}
-            system: ${{ parameters.application }}
-            dependencyOf:
-              - component:${{ parameters.application }}
+        repoUrl: github.com?owner=JOELNATHAN544&repo=om
+        title: 'Service Request: ${{ parameters.serviceType }} - ${{ parameters.serviceName }}'
+        body: |
+          ## Platform Service Request
+          
+          **Service Name:** ${{ parameters.serviceName }}
+          **Service Type:** ${{ parameters.serviceType }}
+          **Size:** ${{ parameters.size }}
+          **Environment:** ${{ parameters.environment }}
+          
+          ### Configuration
+          - **Version:** ${{ parameters.version || 'latest' }}
+          - **Storage:** ${{ parameters.customConfig.storage || 'default' }}
+          - **High Availability:** ${{ parameters.customConfig.highAvailability ? 'Yes' : 'No' }}
+          
+          ### Ownership
+          - **Owner Team:** ${{ parameters.owner }}
+          - **Application:** ${{ parameters.application || 'N/A' }}
+          - **Requested By:** ${{ user.entity.metadata.name }}
+          
+          ---
+          
+          ### Action Items
+          - [ ] Validate team quota
+          - [ ] Provision ${{ parameters.serviceType }} instance
+          - [ ] Create connection secret in namespace `${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}`
+          - [ ] Register resource in Backstage catalog
+          - [ ] Notify requester
+          
+          /label service-request
+          /label ${{ parameters.serviceType }}
+          /label ${{ parameters.environment }}
+        labels:
+          - service-request
+          - ${{ parameters.serviceType }}
+          - ${{ parameters.environment }}
 
   # ==========================================================================
   # Output
   # ==========================================================================
   output:
     links:
-      - title: View Service Request
-        url: /catalog/default/resource/${{ parameters.serviceName }}
-        icon: catalog
-      - title: View in Kubernetes
-        url: /kubernetes/ns/${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}/servicerequests/${{ parameters.serviceName }}
-        icon: kubernetes
+      - title: View Service Request Issue
+        url: ${{ steps['create-service-issue'].output.issueUrl }}
+        icon: github
     text:
-      - title: Service Provisioning
+      - title: Service Request Submitted
         content: |
           ## Service Request Created
-
+          
           **Service**: ${{ parameters.serviceType }}
           **Name**: ${{ parameters.serviceName }}
           **Size**: ${{ parameters.size }}
           **Environment**: ${{ parameters.environment }}
-
-          ${{ parameters.environment === 'prod' ? '⚠️ Production services require approval. You will be notified when approved.' : '✅ Development services are auto-approved and will be ready shortly.' }}
-
-          ### Connection Details
-
-          Once provisioned, connection details will be available in:
-          - Secret: `${{ parameters.serviceName }}-credentials`
-          - Namespace: `${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}`
-
-          ### Next Steps
-
-          1. Wait for the service to be provisioned (check status in catalog)
-          2. Configure your application to use the connection secret
-          3. Test connectivity from your application
+          
+          ${{ parameters.environment === 'prod' ? '⚠️ **Production services require approval.** The platform team will review your request and provision the service.' : '✅ **Development services** are typically auto-approved and provisioned within 15-30 minutes.' }}
+          
+          ### What Happens Next?
+          
+          1. Platform team reviews the request
+          2. Service is provisioned in your namespace
+          3. Connection credentials are stored in a Kubernetes secret
+          4. You'll be notified when the service is ready
+          
+          ### Connection Details (After Provisioning)
+          
+          - **Secret Name**: `${{ parameters.serviceName }}-credentials`
+          - **Namespace**: `${{ parameters.owner | replace('group:', '') }}-${{ parameters.environment }}`
+          
+          Track progress in the [service request issue](${{ steps['create-service-issue'].output.issueUrl }})
