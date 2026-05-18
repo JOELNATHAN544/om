@@ -61,38 +61,95 @@ spec:
                 enum: [admin, developer, viewer]
 
   steps:
-    - id: create-tenant
-      name: Create Tenant
-      action: kubernetes:create
+    - id: create-github-issue
+      name: Create Onboarding Issue
+      action: github:issues:create
       input:
-        apiVersion: platform.om.io/v1alpha1
-        kind: Tenant
-        metadata:
-          name: ${{ parameters.teamName }}
-        spec:
-          name: ${{ parameters.teamName }}
-          displayName: ${{ parameters.displayName }}
+        repoUrl: github.com?owner=JOELNATHAN544&repo=om
+        title: 'Team Onboarding: ${{ parameters.displayName || parameters.teamName }}'
+        body: |
+          ## Team Onboarding Request
+          
+          **Team Name:** ${{ parameters.teamName }}
+          **Display Name:** ${{ parameters.displayName || parameters.teamName }}
+          **Team Lead:** ${{ parameters.owner }}
+          **Cost Center:** ${{ parameters.costCenter }}
+          
+          ### Subscription Details
+          - **Tier:** ${{ parameters.tier }}
+          - **Environments:** ${{ parameters.environments | join(', ') }}
+          
+          ### Team Members
+          {% for member in parameters.members %}
+          - {{ member.email }} ({{ member.role }})
+          {% endfor %}
+          
+          ---
+          
+          ### Action Items
+          - [ ] Create namespaces for environments
+          - [ ] Set up RBAC and service accounts
+          - [ ] Create ArgoCD project
+          - [ ] Add team to Backstage catalog
+          - [ ] Configure resource quotas based on tier
+          - [ ] Send welcome email to team lead
+          
+          /label team-onboarding
+          /label ${{ parameters.tier }}
+        labels:
+          - team-onboarding
+          - ${{ parameters.tier }}
+
+    - id: create-group-file
+      name: Create Team Group File
+      action: fetch:template
+      input:
+        url: ./content
+        values:
+          teamName: ${{ parameters.teamName }}
+          displayName: ${{ parameters.displayName || parameters.teamName }}
           owner: ${{ parameters.owner }}
-          tier: ${{ parameters.tier }}
-          environments: ${{ parameters.environments }}
-          costCenter: ${{ parameters.costCenter }}
           members: ${{ parameters.members }}
 
-    - id: create-group
-      name: Create Backstage Group
-      action: catalog:register
+    - id: publish-group
+      name: Create PR with Team Group
+      action: publish:github:pull-request
       input:
-        catalogInfoPath: |
-          apiVersion: backstage.io/v1alpha1
-          kind: Group
-          metadata:
-            name: ${{ parameters.teamName }}
-          spec:
-            type: team
-            children: []
-            members: ${{ parameters.members | map(m => m.email) }}
+        repoUrl: github.com?owner=JOELNATHAN544&repo=om
+        branchName: team-${{ parameters.teamName }}
+        title: 'feat: add team ${{ parameters.displayName || parameters.teamName }}'
+        description: |
+          ## Add Team to Catalog
+          
+          This PR adds the **${{ parameters.displayName || parameters.teamName }}** team to the Backstage catalog.
+          
+          **Team Lead:** ${{ parameters.owner }}
+          **Cost Center:** ${{ parameters.costCenter }}
+          
+          Related issue: Will be created automatically
+        targetPath: platform/portal/backstage/catalog/teams
+        sourcePath: .
 
   output:
     links:
-      - title: View Team
-        url: /catalog/default/group/${{ parameters.teamName }}
+      - title: View Onboarding Issue
+        url: ${{ steps['create-github-issue'].output.issueUrl }}
+        icon: github
+      - title: View Team PR
+        url: ${{ steps['publish-group'].output.remoteUrl }}
+        icon: github
+    text:
+      - title: Next Steps
+        content: |
+          ## Team Onboarding Initiated!
+          
+          Your team onboarding request has been submitted. The platform team will:
+          
+          1. Review the onboarding issue
+          2. Create the necessary infrastructure (namespaces, RBAC, etc.)
+          3. Merge the team catalog PR
+          4. Notify you when onboarding is complete
+          
+          **Estimated time:** 1-2 business days
+          
+          Track progress in the [onboarding issue](${{ steps['create-github-issue'].output.issueUrl }})

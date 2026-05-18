@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: ${{ values.teamName }}
+  description: ${{ values.displayName }}
+  annotations:
+    backstage.io/managed-by-location: url:https://github.com/JOELNATHAN544/om/blob/main/platform/portal/backstage/catalog/teams/${{ values.teamName }}.yaml
+spec:
+  type: team
+  profile:
+    displayName: ${{ values.displayName }}
+    email: ${{ values.owner }}
+  children: []
+  members:
+    {% for member in values.members %}
+    - ${{ member.email | replace('@', '-at-') | replace('.', '-') }}
+    {% endfor %}
