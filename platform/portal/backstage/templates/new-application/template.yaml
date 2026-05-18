@@ -211,7 +211,6 @@ spec:
       name: Create GitHub Repository
       action: publish:github
       input:
-        allowedHosts: ['github.com']
         description: ${{ parameters.description }}
         repoUrl: ${{ parameters.repoUrl }}
         defaultBranch: main
@@ -225,7 +224,7 @@ spec:
       name: Create Deployment Configuration
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=skyengpro&repo=om
+        repoUrl: github.com?owner=${{ secrets.GITHUB_ORG }}&repo=${{ secrets.GITHUB_REPO }}
         branchName: onboard-${{ parameters.name }}
         title: 'feat: onboard ${{ parameters.name }} application'
         description: |
