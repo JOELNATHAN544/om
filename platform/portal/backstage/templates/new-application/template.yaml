@@ -7,8 +7,8 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: new-application
-  title: Create New Application
+  name: new-application-v2
+  title: Create New Application (v2)
   description: |
     Bootstrap a new application with:
     - GitHub repository with CI/CD
