@@ -112,7 +112,7 @@ K3D_REGISTRY_PORT="${K3D_REGISTRY_PORT:-5000}"
 K3D_HTTP_PORT="${K3D_HTTP_PORT:-80}"
 K3D_HTTPS_PORT="${K3D_HTTPS_PORT:-443}"
 K3D_AGENTS="${K3D_AGENTS:-0}"
-BACKSTAGE_IMAGE_REMOTE="${BACKSTAGE_IMAGE_REMOTE:-docker.io/joelnatahn/my-backstage:fixed}"
+BACKSTAGE_IMAGE_REMOTE="${BACKSTAGE_IMAGE_REMOTE:-docker.io/joelnatahn/om-backstage:v1}"
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
@@ -228,12 +228,18 @@ ensure_traefik() {
   helm repo add traefik https://traefik.github.io/charts --force-update >/dev/null 2>&1 || true
   helm repo update traefik >/dev/null 2>&1 || true
 
-  # Install CRDs first — required by newer Traefik chart versions
+  # Install CRDs using kubectl to avoid Helm secret size limits
   echo -e "${BLUE}⏳ Installing Traefik CRDs...${NC}"
-  helm upgrade --install traefik-crds traefik/traefik-crds \
-    -n kube-system \
-    --wait --timeout 5m \
-    --skip-schema-validation 2>&1 | grep -v "^$" || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutes.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressroutetcps.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_ingressrouteudps.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewares.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_middlewaretcps.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransports.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_serverstransporttcps.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsoptions.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_tlsstores.yaml >/dev/null 2>&1 || true
+  kubectl apply -f https://raw.githubusercontent.com/traefik/traefik-helm-chart/master/traefik/crds/traefik.io_traefikservices.yaml >/dev/null 2>&1 || true
 
   echo -e "${BLUE}⏳ Installing Traefik...${NC}"
   helm upgrade --install traefik traefik/traefik \
@@ -246,7 +252,7 @@ ensure_traefik() {
     --set ingressClass.enabled=true \
     --set ingressClass.isDefaultClass=true \
     --skip-schema-validation \
-    --wait --timeout 5m
+    --wait --timeout 10m
 }
 
 http_smoke_test() {
@@ -403,6 +409,27 @@ wait_for_cluster_networking
 # 4. Install ArgoCD
 # =============================================================================
 echo -e "${BLUE}⚓ Installing ArgoCD...${NC}"
+
+# Ensure API server is fully stable before proceeding with Helm operations
+echo -e "${BLUE}⏳ Verifying API server stability...${NC}"
+
+# Wait for all kube-system pods to be running
+kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=5m 2>/dev/null || true
+
+# Multiple health checks with longer delays
+for i in {1..5}; do
+  kubectl get --raw /healthz >/dev/null 2>&1 && \
+  kubectl get nodes >/dev/null 2>&1 && \
+  kubectl get pods -n kube-system >/dev/null 2>&1 && \
+  echo -e "${GREEN}✅ API server check ${i}/5 passed${NC}" || \
+  echo -e "${YELLOW}⚠️  API server check ${i}/5 failed, retrying...${NC}"
+  sleep 5
+done
+
+# Give API server extra time to stabilize
+echo -e "${BLUE}⏳ Allowing API server to fully stabilize...${NC}"
+sleep 10
+
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 helm repo add argo https://argoproj.github.io/argo-helm --force-update || true
 helm repo update argo
@@ -449,17 +476,47 @@ if helm status argocd -n argocd >/dev/null 2>&1; then
     echo -e "${YELLOW}🧹 ArgoCD Helm release is in failed state. Uninstalling before retry...${NC}"
     helm uninstall argocd -n argocd || true
     kubectl delete job -n argocd -l app.kubernetes.io/instance=argocd --ignore-not-found=true || true
+    sleep 5
   fi
 fi
 
-helm upgrade --install argocd argo/argo-cd \
-  -n argocd \
-  --set configs.params."server\.insecure"=true \
-  --set server.extraArgs[0]=--insecure \
-  --set server.ingress.enabled=true \
-  --set server.ingress.ingressClassName=traefik \
-  --set "server.ingress.hosts={${ARGOCD_DOMAIN}}" \
-  --wait --timeout 30m
+# Install ArgoCD with retry logic for connection issues
+echo -e "${BLUE}⏳ Installing ArgoCD (this may take a few minutes)...${NC}"
+HELM_INSTALL_SUCCESS=false
+for attempt in {1..3}; do
+  echo -e "${BLUE}Attempt ${attempt}/3...${NC}"
+  
+  if helm upgrade --install argocd argo/argo-cd \
+    -n argocd \
+    --set configs.params."server\.insecure"=true \
+    --set server.extraArgs[0]=--insecure \
+    --set server.ingress.enabled=true \
+    --set server.ingress.ingressClassName=traefik \
+    --set "server.ingress.hosts={${ARGOCD_DOMAIN}}" \
+    --timeout 15m 2>&1; then
+    HELM_INSTALL_SUCCESS=true
+    break
+  else
+    echo -e "${YELLOW}⚠️  ArgoCD installation attempt ${attempt}/3 failed.${NC}"
+    if [[ ${attempt} -lt 3 ]]; then
+      WAIT_TIME=$((attempt * 15))
+      echo -e "${YELLOW}Waiting ${WAIT_TIME} seconds before retry...${NC}"
+      sleep ${WAIT_TIME}
+      
+      # Re-verify API server health before retry
+      echo -e "${BLUE}Re-checking API server...${NC}"
+      kubectl get nodes >/dev/null 2>&1 || true
+      sleep 5
+    fi
+  fi
+done
+
+if [[ "${HELM_INSTALL_SUCCESS}" != "true" ]]; then
+  echo -e "${RED}❌ Failed to install ArgoCD after 3 attempts.${NC}"
+  echo -e "${YELLOW}💡 Try running the script again, or check cluster logs:${NC}"
+  echo -e "${YELLOW}   kubectl logs -n kube-system -l app.kubernetes.io/name=traefik${NC}"
+  exit 1
+fi
 
 # Ensure ingress host + TLS secret are correct (chart defaults can drift across upgrades).
 if kubectl -n argocd get ingress argocd-server >/dev/null 2>&1; then
@@ -937,6 +994,32 @@ kubectl -n argocd patch application backstage \
 # resources — Helm will fail with x509 errors otherwise. ingress-nginx recreates
 # it automatically on its next sync.
 kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+
+# If ingress-nginx is installed, disable its admission webhook permanently
+if kubectl get deployment -n ingress-nginx ingress-nginx-controller >/dev/null 2>&1; then
+  echo -e "${YELLOW}⚠️  Detected ingress-nginx. Disabling admission webhook...${NC}"
+  kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+  kubectl delete -n ingress-nginx job ingress-nginx-admission-create ingress-nginx-admission-patch --ignore-not-found=true >/dev/null 2>&1 || true
+  kubectl scale deployment -n ingress-nginx ingress-nginx-controller --replicas=0 >/dev/null 2>&1 || true
+  sleep 3
+fi
+
+# Restart the ingress-nginx controller to ensure fresh certificates (if it exists)
+kubectl delete pod -n ingress-nginx -l app.kubernetes.io/component=controller --ignore-not-found=true >/dev/null 2>&1 || true
+
+# Wait for ingress-nginx controller to be ready before proceeding
+echo -e "${YELLOW}⏳ Waiting for ingress-nginx controller to be ready...${NC}"
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=120s >/dev/null 2>&1 || true
+
+# Wait for the webhook to be recreated with fresh certificates
+sleep 10
+
+# Delete the webhook configuration one final time right before Helm deployment
+kubectl delete validatingwebhookconfiguration ingress-nginx-admission --ignore-not-found=true >/dev/null 2>&1 || true
+sleep 2
 
 # Strip managedFields from conflicting resources so Helm can re-claim ownership cleanly.
 for resource in \

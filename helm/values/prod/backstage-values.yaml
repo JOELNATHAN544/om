@@ -12,7 +12,7 @@ backstage:
   image:
     registry: k3d-om-registry:5000
     repository: om-backstage
-    tag: local
+    tag: v1
     pullPolicy: IfNotPresent
 
   resources:
