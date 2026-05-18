@@ -242,39 +242,40 @@ spec:
         targetPath: apps/${{ parameters.owner | replace('group:', '') }}/${{ parameters.name }}
 
     # Step 5: Create service requests for dependencies
-    - id: create-database
-      name: Request Database
-      if: ${{ parameters.database !== 'none' }}
-      action: http:backstage:request
-      input:
-        method: POST
-        path: /api/kubernetes/apply
-        body:
-          apiVersion: platform.om.io/v1alpha1
-          kind: ServiceRequest
-          metadata:
-            name: ${{ parameters.name }}-db
-            namespace: ${{ parameters.owner | replace('group:', '') }}-dev
-          spec:
-            service: ${{ parameters.database }}
-            size: small
+    # TODO: Implement http:backstage:request action or use kubernetes:create
+    # - id: create-database
+    #   name: Request Database
+    #   if: ${{ parameters.database !== 'none' }}
+    #   action: http:backstage:request
+    #   input:
+    #     method: POST
+    #     path: /api/kubernetes/apply
+    #     body:
+    #       apiVersion: platform.om.io/v1alpha1
+    #       kind: ServiceRequest
+    #       metadata:
+    #         name: ${{ parameters.name }}-db
+    #         namespace: ${{ parameters.owner | replace('group:', '') }}-dev
+    #       spec:
+    #         service: ${{ parameters.database }}
+    #         size: small
 
-    - id: create-cache
-      name: Request Cache
-      if: ${{ parameters.cache !== 'none' }}
-      action: http:backstage:request
-      input:
-        method: POST
-        path: /api/kubernetes/apply
-        body:
-          apiVersion: platform.om.io/v1alpha1
-          kind: ServiceRequest
-          metadata:
-            name: ${{ parameters.name }}-cache
-            namespace: ${{ parameters.owner | replace('group:', '') }}-dev
-          spec:
-            service: ${{ parameters.cache }}
-            size: small
+    # - id: create-cache
+    #   name: Request Cache
+    #   if: ${{ parameters.cache !== 'none' }}
+    #   action: http:backstage:request
+    #   input:
+    #     method: POST
+    #     path: /api/kubernetes/apply
+    #     body:
+    #       apiVersion: platform.om.io/v1alpha1
+    #       kind: ServiceRequest
+    #       metadata:
+    #         name: ${{ parameters.name }}-cache
+    #         namespace: ${{ parameters.owner | replace('group:', '') }}-dev
+    #       spec:
+    #         service: ${{ parameters.cache }}
+    #         size: small
 
     # Step 6: Register in catalog
     - id: register
