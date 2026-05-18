@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: ${{ values.destination.owner + "/" + values.destination.repo }}
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - ${{ values.language }}
+    {% if values.framework != 'none' %}- ${{ values.framework }}{% endif %}
+    {% if values.database != 'none' %}- ${{ values.database }}{% endif %}
+    {% if values.cache != 'none' %}- ${{ values.cache }}{% endif %}
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: platform
